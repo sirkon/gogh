@@ -1,5 +1,5 @@
 # gogh
-Go source code rendering library
+Go source code rendering library. The name `gogh` comes from both `GO Generator` and from the fact I love Van Gogh works.
 
 ## Installation
 

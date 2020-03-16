@@ -41,7 +41,7 @@ func main() {
 ## Recommended usage
 
 It is not actually recommended to use it directly. Embed provided objects and use it in integrated
-maner. For instance, it would be sensible to combine both `gogh.Imports` and `gogh.Go` in an single
+manner. For instance, it would be sensible to combine both `gogh.Imports` and `gogh.Go` in an single
 instance somehow as imports are naturally a part of code generation. They are splitted with render
 object for the only reason: there can be frequently used libraries what it would be nice to have
 shortucts for. In addition, some custom import weighter would be handy to split imports to groups of

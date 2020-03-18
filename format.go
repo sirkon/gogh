@@ -10,7 +10,7 @@ import (
 func formatLine(line string, a ...interface{}) string {
 	switch len(a) {
 	case 0:
-		return line
+		return format.Formatp(line)
 	case 1:
 		switch v := a[0].(type) {
 		case fmt.Stringer:

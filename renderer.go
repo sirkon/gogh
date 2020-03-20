@@ -133,7 +133,12 @@ func (r *Renderer) render(pkgComment string, pkg string, imports []ImportsGroup)
 	return &result, nil
 }
 
-// RawData извлечение сырых накопленных данных
-func RawData(r *Renderer) string {
+// RawString извлечение сырых накопленных данных в виде строки
+func RawString(r *Renderer) string {
 	return r.buf.String()
+}
+
+// RawBytes извлечение сырых накполенных данных в виде слайса байт
+func RawBytes(r *Renderer) []byte {
+	return r.buf.Bytes()
 }

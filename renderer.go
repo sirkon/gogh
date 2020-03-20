@@ -133,7 +133,7 @@ func (r *Renderer) render(pkgComment string, pkg string, imports []ImportsGroup)
 	return &result, nil
 }
 
-// RawString returns collected data as a string
-func (r *Renderer) RawString() string {
+// RawData извлечение сырых накопленных данных
+func RawData(r *Renderer) string {
 	return r.buf.String()
 }

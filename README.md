@@ -53,17 +53,18 @@ I would recommend something like that:
 package renderer
 
 import (
+    "io"
     "strings"
 
     "github.com/sirkon/gogh"
 )
 
 type someCustomWeighter struct {
-    Weighter
+    gogh.Weighter
 }
 
-func (w Weighter) Weight(path string) int {
-    switch v:= w.Weighter.Weight(path) {
+func (w someCustomWeighter) Weight(path string) int {
+    switch v:= w.Weighter.Weight(path); v {
     case 0, 1:
         return v
     default:

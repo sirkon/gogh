@@ -11,13 +11,18 @@ func (stringerSample) String() string {
 	return "I am a stringer"
 }
 
+type defaultCtx struct {
+	Value string
+}
+
 func Test_formatLine(t *testing.T) {
 	value := 12
 	tests := []struct {
-		name string
-		line string
-		a    []interface{}
-		want string
+		name       string
+		line       string
+		defaultCtx interface{}
+		a          []interface{}
+		want       string
 	}{
 		{
 			name: "no-format",
@@ -92,10 +97,18 @@ func Test_formatLine(t *testing.T) {
 			a:    []interface{}{&value},
 			want: "12",
 		},
+		{
+			name: "with-ctx",
+			line: "${Value}",
+			defaultCtx: defaultCtx{
+				Value: "value",
+			},
+			want: "value",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := formatLine(tt.line, tt.a...); got != tt.want {
+			if got := formatLine(tt.line, tt.defaultCtx, tt.a...); got != tt.want {
 				t.Errorf("formatLine() = %v, want %v", got, tt.want)
 			}
 		})

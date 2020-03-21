@@ -7,10 +7,14 @@ import (
 	"github.com/sirkon/go-format"
 )
 
-func formatLine(line string, a ...interface{}) string {
+func formatLine(line string, defaultCtx interface{}, a ...interface{}) string {
 	switch len(a) {
 	case 0:
-		return format.Formatp(line)
+		var args []interface{}
+		if defaultCtx != nil {
+			return formatLine(line, nil, defaultCtx)
+		}
+		return format.Formatp(line, args...)
 	case 1:
 		switch v := a[0].(type) {
 		case fmt.Stringer:
@@ -40,7 +44,7 @@ func formatLine(line string, a ...interface{}) string {
 				if t.Elem().Kind() == reflect.Struct {
 					return format.Formatg(line, reflect.ValueOf(a[0]).Elem().Interface())
 				} else {
-					return formatLine(line, reflect.ValueOf(a[0]).Elem().Interface())
+					return formatLine(line, nil, reflect.ValueOf(a[0]).Elem().Interface())
 				}
 			default:
 				return format.Formatp(line, a[0])

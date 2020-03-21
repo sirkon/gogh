@@ -1,6 +1,7 @@
 package gogh_test
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -26,6 +27,20 @@ var importGroups = []gogh.ImportsGroup{
 			Path:  "github.com/sirkon/gogh",
 		},
 	},
+}
+
+func TestMustPanicOnNilDefaultContext(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Errorf("panic expected")
+			return
+		}
+		t.Log(r)
+	}()
+
+	var r gogh.Renderer
+	r.WithCtx(nil)
 }
 
 func ExampleGoRendererNoHeadCommentError() {
@@ -113,13 +128,54 @@ func ExampleGoRendererHeadMultiLineCommentOK() {
 	// }
 }
 
+func ExampleWithRawlAndNewlAndContext() {
+	var text struct {
+		Text string
+	}
+	text.Text = "Hello world!"
+
+	var r gogh.Renderer
+	r.WithCtx(text)
+
+	imports := gogh.NewImports(gogh.GenericWeighter())
+	imports.Add("", "fmt")
+
+	r.Rawl(`func main() {`)
+	r.Line(`    text := "${Text}"`)
+	r.Newl()
+	r.Line(`    fmt.Println(text)`)
+	r.Rawl(`}`)
+	src, err := r.Render("", "main", imports.Result())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	_, _ = io.Copy(os.Stdout, src)
+
+	// Output:
+	// package main
+	//
+	// import (
+	//	"fmt"
+	// )
+	//
+	// func main() {
+	//	text := "Hello world!"
+	//
+	//	fmt.Println(text)
+	// }
+}
+
 func TestRendererRawString(t *testing.T) {
 	var r gogh.Renderer
 	line := `a := &Struct{`
 	r.Line(line)
 
 	lineNL := line + "\n"
-	if r.RawString() != lineNL {
-		t.Errorf("`%s` expected, got `%s`", lineNL, r.RawString())
+	if gogh.RawString(&r) != lineNL {
+		t.Errorf("`%s` expected, got `%s`", lineNL, gogh.RawString(&r))
+	}
+	if !bytes.Equal(gogh.RawBytes(&r), []byte(lineNL)) {
+		t.Errorf("`%s` expected, got `%s`", lineNL, gogh.RawString(&r))
 	}
 }

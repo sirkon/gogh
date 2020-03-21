@@ -25,11 +25,11 @@ func main() {
     imports.Add("", "fmt")
     
     var r gogh.Renderer
-    r.Line(`func main() {`)
-    r.Line(`    greet := "World"`)
-    r.Line(`    fmt.Println("Hello $0!", greet)`)
-    r.Line(`}`)
-    src, err := r.RenderAutogen("appName", "main", r.Result())
+    gogh.Line(&r, `func main() {`)
+    gogh.Line(&r, `    greet := "World"`)
+    gogh.Line(&r, `    fmt.Println("Hello $0!", greet)`)
+    gogh.Line(&r, `}`)
+    src, err := r.RenderAutogen("appName", "main", imports.Result())
     if err != nil {
         panic(err)        
     }
@@ -47,64 +47,3 @@ object for the only reason: there can be frequently used libraries what it would
 shortucts for. In addition, some custom import weighter would be handy to split imports to groups of
 your liking.
 
-I would recommend something like that:
-
-```go
-package renderer
-
-import (
-    "io"
-    "strings"
-
-    "github.com/sirkon/gogh"
-)
-
-type someCustomWeighter struct {
-    gogh.Weighter
-}
-
-func (w someCustomWeighter) Weight(path string) int {
-    switch v:= w.Weighter.Weight(path); v {
-    case 0, 1:
-        return v
-    default:
-        if strings.HasPrefix(path, "company.org") {
-            return v + 1
-        }
-        return v
-    }   
-}
-
-type Imports struct {
-    gogh.Imports
-}
-
-func (i *Imports) Errors() {
-    i.Add("", "company.org/common/errors")
-}
-
-type File struct {
-    gogh.Renderer
-    pkgName string
-    imports *Imports
-}
-
-func NewFile(pkgName string) *File {
-    return &File{
-        pkgName: pkgName,
-        imports: &Imports{gogh.NewImports(someCustomWeighter{gogh.GenericWeighter()})},
-    }
-}
-
-func (f *File) Render(comment string) (io.Reader, error) {
-    return f.Renderer.Render(comment, f.pkgName, f.imports.Result())
-}
-
-func (f *File) RenderAutogen(appName string) (io.Reader, error) {
-	return f.Renderer.RenderAutogen(appName, f.pkgName, f.imports.Result())
-}
-
-func (f *File) Imports() *Imports {
-    return f.imports
-}
-``` 

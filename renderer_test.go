@@ -73,14 +73,16 @@ func ExampleGoRendererHeadSingleLineCommentOK() {
 	gogh.Line(&r, `func main() {`)
 	gogh.Line(&r, `}`)
 
-	src, err := gogh.RenderAutogen(&r, "application", "main", importGroups)
+	src, err := gogh.RenderAutogen(&r, "application", "comment", "main", importGroups)
 	if err != nil {
 		fmt.Println(err)
 	} else {
 		_, _ = io.Copy(os.Stdout, src)
 	}
 	// Output:
-	// // Code generate with application. DO NOT EDIT.
+	// // Code generated with application. DO NOT EDIT.
+	//
+	// // comment
 	//
 	// package main
 	//

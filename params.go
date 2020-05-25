@@ -15,6 +15,9 @@ type Params struct {
 }
 
 func (p Params) String() string {
+	if len(p.params) == 0 {
+		return ""
+	}
 	var buf bytes.Buffer
 	var length int
 	for _, p := range p.params {

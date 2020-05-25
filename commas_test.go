@@ -37,7 +37,6 @@ func ExampleCommas() {
 }
 
 func TestCommas_Append(t *testing.T) {
-
 	tests := []struct {
 		name      string
 		setup     func(c *gogh.Commas)

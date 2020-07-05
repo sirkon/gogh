@@ -1,6 +1,8 @@
 package gogh
 
 import (
+	"sync"
+
 	"golang.org/x/tools/go/packages"
 )
 
@@ -24,8 +26,8 @@ func (g genericWeighter) Weight(importPath string) int {
 	if importPath == "C" {
 		return 0
 	}
-	_, ok := stdlibPackages[importPath]
-	if ok {
+
+	if isStdlibPackage(importPath) {
 		return 1
 	}
 
@@ -33,8 +35,25 @@ func (g genericWeighter) Weight(importPath string) int {
 }
 
 var stdlibPackages map[string]struct{}
+var stdlibPackageLock sync.Mutex
+var stdlibPackageOnce sync.Once
 
-func init() {
+func isStdlibPackage(importPath string) bool {
+	if stdlibPackages != nil {
+		_, ok := stdlibPackages[importPath]
+		return ok
+	}
+
+	stdlibPackageLock.Lock()
+	defer stdlibPackageLock.Unlock()
+
+	stdlibPackageOnce.Do(initStdlibPackages)
+
+	_, ok := stdlibPackages[importPath]
+	return ok
+}
+
+func initStdlibPackages() {
 	stdlibPackages = map[string]struct{}{}
 	pkgs, err := packages.Load(nil, "std")
 	if err != nil {

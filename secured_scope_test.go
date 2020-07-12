@@ -27,7 +27,7 @@ func TestScope_Var(t *testing.T) {
 				return gogh.NewScope()
 			},
 			prefix: "var",
-			want:   "var",
+			want:   "vari",
 		},
 		{
 			name: "conflict-same-prefix",
@@ -38,22 +38,42 @@ func TestScope_Var(t *testing.T) {
 
 				return s
 			},
-			prefix: "var",
-			want:   "varii",
+			prefix: "vari",
+			want:   "variii",
 		},
 		{
 			name: "conflict-different-prefixes",
 			s: func() *gogh.Scope {
 				s := gogh.NewScope()
-				s.Var("var")
-				s.Var("var")
 				s.Var("vari")
 				s.Var("varii")
+				s.Var("variii")
+				s.Var("variv")
 
 				return s
 			},
 			prefix: "var",
-			want:   "variv",
+			want:   "varv",
+		},
+		{
+			name: "keywords",
+			s: func() *gogh.Scope {
+				s := gogh.NewScope()
+
+				return s
+			},
+			prefix: "break",
+			want:   "breaki",
+		},
+		{
+			name: "builtins",
+			s: func() *gogh.Scope {
+				s := gogh.NewScope()
+
+				return s
+			},
+			prefix: "string",
+			want:   "stringi",
 		},
 	}
 	for _, tt := range tests {

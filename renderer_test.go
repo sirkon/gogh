@@ -47,24 +47,13 @@ func ExampleGoRendererNoHeadCommentError() {
 	var r gogh.Renderer
 
 	gogh.Line(&r, "func main() {")
+	gogh.Line(&r, "    var ah string")
 
 	_, err := gogh.Render(&r, "", "main", importGroups)
 	fmt.Println(err)
 	// Output:
-	// 11:15: expected ';', found 'EOF' (and 1 more errors)
-	//
-	// 01: package main
-	// 02:
-	// 03: import "C"
-	// 04:
-	// 05: import (
-	// 06:     "fmt"
-	// 07:
-	// 08:     pkg "github.com/sirkon/gogh"
-	// 09: )
-	// 10:
-	// 11: func main() {
-	// 12:
+	// expected ';', found 'EOF'
+	//     var ah string
 }
 
 func ExampleGoRendererHeadSingleLineCommentOK() {

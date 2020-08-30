@@ -2,6 +2,7 @@ package gogh_test
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -68,6 +69,42 @@ func TestCommas_Append(t *testing.T) {
 			var c gogh.Commas
 			tt.setup(&c)
 			assert.Equal(t, tt.want, c.String())
+		})
+	}
+}
+
+func TestCommas_Mutliline(t *testing.T) {
+	tests := []struct {
+		name   string
+		commas func() gogh.Commas
+		want   string
+	}{
+		{
+			name: "less than two lines",
+			commas: func() gogh.Commas {
+				var commas gogh.Commas
+				commas.Append("val")
+				return commas
+			},
+			want: "val",
+		},
+		{
+			name: "more than two lines",
+			commas: func() gogh.Commas {
+				var commas gogh.Commas
+				commas.Append("val1")
+				commas.Append("2")
+				return commas
+			},
+			want: "\nval1,\n2,\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.commas().Mutliline().String()
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Mutliline() = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }

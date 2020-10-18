@@ -2,16 +2,12 @@ package gogh
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
-	"go/ast"
 	"go/parser"
 	"go/printer"
-	"go/scanner"
 	"go/token"
 	"io"
 	"os"
-	"runtime/debug"
 	"strconv"
 	"strings"
 )
@@ -28,8 +24,6 @@ type Renderer struct {
 
 	// lines an amount of lines currently in the buffer
 	lines int
-	// straces stack traces hare appended before the new
-	straces []straceType
 }
 
 // WithCtx adds default context for formatting
@@ -54,10 +48,6 @@ func Line(r *Renderer, line string, a ...interface{}) {
 	content := formatLine(line, r.defaultCtx, a...)
 	r.buf.WriteString(content)
 	r.buf.WriteByte('\n')
-	r.straces = append(r.straces, straceType{
-		line:   r.lines,
-		strace: string(debug.Stack()),
-	})
 	r.lines += 1 + strings.Count(content, "\n")
 }
 
@@ -65,30 +55,7 @@ func Line(r *Renderer, line string, a ...interface{}) {
 func Rawl(r *Renderer, line string) {
 	r.buf.WriteString(line)
 	r.buf.WriteByte('\n')
-	r.straces = append(r.straces, straceType{
-		line:   r.lines,
-		strace: string(debug.Stack()),
-	})
 	r.lines += 1 + strings.Count(line, "\n")
-}
-
-// locateErrorReason look for a stacktrace in a buffer which is a reason of parsing error. codeLine is a position
-// in produced code and headerOffset is an amount of lines added before parsing (package statement, imports, comments,
-// etc)
-func (r *Renderer) locateErrorReason(codeLine int, headerOffset int) (int, string) {
-	var strace string
-	var line int
-
-	for _, s := range r.straces {
-		if s.line+headerOffset <= codeLine {
-			line = s.line + headerOffset
-			strace = s.strace
-		} else {
-			break
-		}
-	}
-
-	return line, strace
 }
 
 // Newl renders empty line
@@ -153,48 +120,12 @@ func (r *Renderer) render(pkgComment []string, pkg string, imports []ImportsGrou
 		}
 		buf.WriteString(")\n\n")
 	}
-	lineCount := bytes.Count(buf.Bytes(), []byte("\n"))
 
 	_, _ = io.Copy(&buf, &r.buf)
 
 	fset := token.NewFileSet()
 	p, err := parser.ParseFile(fset, "", &buf, parser.AllErrors|parser.ParseComments)
 	if err != nil {
-		var errStrace string
-		var errLine int
-		var errEnd int
-		if p != nil {
-			ast.Inspect(p, func(node ast.Node) bool {
-				switch v := node.(type) {
-				case *ast.BadDecl:
-					errLine, errStrace = r.locateErrorReason(fset.Position(v.Pos()).Line, lineCount)
-					errEnd = fset.Position(v.End()).Line
-					return false
-				case *ast.BadExpr:
-					errLine, errStrace = r.locateErrorReason(fset.Position(v.Pos()).Line, lineCount)
-					errEnd = fset.Position(v.End()).Line
-					return false
-				case *ast.BadStmt:
-					errLine, errStrace = r.locateErrorReason(fset.Position(v.Pos()).Line, lineCount)
-					errEnd = fset.Position(v.End()).Line
-					return false
-				}
-
-				return true
-			})
-		}
-		var errs scanner.ErrorList
-		var shortErr error
-		if errors.As(err, &errs) {
-			for _, e := range errs {
-				shortErr = errors.New(e.Msg)
-				if errStrace == "" {
-					errEnd = e.Pos.Line
-					errLine, errStrace = r.locateErrorReason(errEnd, lineCount)
-				}
-				break
-			}
-		}
 
 		txt := strings.Split(buf.String(), "\n")
 		txtBottomLine := strconv.Itoa(len(txt))
@@ -214,14 +145,6 @@ func (r *Renderer) render(pkgComment []string, pkg string, imports []ImportsGrou
 			}
 		}
 		_, _ = io.Copy(os.Stderr, &errMsg)
-
-		if shortErr != nil {
-			_, _ = os.Stderr.WriteString(errStrace + "\n")
-
-			lines := strings.Split(buf.String(), "\n")
-			lines = lines[errLine : errEnd+1]
-			err = errors.New(shortErr.Error() + "\n" + strings.Join(lines, "\n"))
-		}
 
 		return nil, err
 	}

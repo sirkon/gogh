@@ -19,8 +19,8 @@ func (p *Package[T]) Package(name, pkgpath string) (*Package[T], error) {
 	return p.mod.Package(name, path.Join(p.mod.name, p.rel, pkgpath))
 }
 
-// Go creates new or reuse existing Go source file renderer, options may alter code generation.
-func (p *Package[T]) Go(name string, opts ...GoRendererOption[T]) *GoRenderer[T] {
+// Go creates new or reuse existing Go source file renderingOptionsHandler, options may alter code generation.
+func (p *Package[T]) Go(name string, opts ...RendererOption) *GoRenderer[T] {
 	if v, ok := p.rs[name]; ok {
 		return v
 	}

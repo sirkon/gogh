@@ -4,6 +4,7 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/chonla/roman-number-go"
 	"github.com/sirkon/errors"
 	"github.com/sirkon/jsonexec"
 	"github.com/sirkon/message"
@@ -129,7 +130,7 @@ func (a *ImportAliasControl) As(alias string) *ImportReferenceControl {
 	}
 }
 
-// Ref adds a package name or alias into the renderer's context under the given name ref
+// Ref adds a package name or alias into the renderingOptionsHandler's context under the given name ref
 func (a *ImportAliasControl) Ref(ref string) {
 	a.push()
 
@@ -195,6 +196,7 @@ func (a *ImportAliasControl) push() string {
 outer:
 	for i := 2; i < math.MaxInt; i++ {
 		alias = a.alias + strconv.Itoa(i)
+		alias = a.alias + roman.NewRoman().ToRoman(i)
 		for pkgpath, pkgalias := range a.i.pkgs {
 			if pkgalias == alias {
 				if pkgpath == a.pkgpath {
@@ -205,7 +207,7 @@ outer:
 			}
 		}
 
-		// found no conflict if in here
+		// no conflict found if in here
 		a.alias = alias
 		break
 	}
@@ -214,7 +216,7 @@ outer:
 	return a.alias
 }
 
-// ImportReferenceControl allows to add a variable having package name (or alias) in the renderer scope
+// ImportReferenceControl allows to add a variable having package name (or alias) in the renderingOptionsHandler scope
 type ImportReferenceControl struct {
 	a *ImportAliasControl
 }

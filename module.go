@@ -46,6 +46,7 @@ func New[T Importer](
 		fmt:      formatter,
 		importer: importer,
 		pkgs:     map[string]*Package[T]{},
+		raws:     map[string]*RawRenderer{},
 		pkgcache: map[string]string{},
 	}
 
@@ -64,7 +65,9 @@ type Module[T Importer] struct {
 	importer       func(imports *Imports) T
 	aliasCorrector AliasCorrector
 
-	pkgs     map[string]*Package[T]
+	pkgs map[string]*Package[T]
+	raws map[string]*RawRenderer
+
 	pkgcache map[string]string
 }
 
@@ -76,6 +79,24 @@ func (m *Module[T]) Root(name string) (*Package[T], error) {
 // Package creates if needed and returns a subpackage of the project root
 func (m *Module[T]) Package(name, pkgpath string) (*Package[T], error) {
 	return m.getPackage(name, pkgpath)
+}
+
+// Raw creates a renderer for plain text file
+func (m *Module[T]) Raw(relpath string, opts ...RendererOption) *RawRenderer {
+	fullpath := filepath.Join(m.root, relpath)
+	localpath := path.Join(m.name, relpath)
+	if v, ok := m.raws[relpath]; ok {
+		return v
+	}
+
+	res := &RawRenderer{
+		localname: localpath,
+		fullname:  fullpath,
+		options:   opts,
+		vals:      map[string]interface{}{},
+	}
+	m.raws[relpath] = res
+	return res
 }
 
 // Name returns module name
@@ -97,6 +118,16 @@ func (m *Module[T]) Render() error {
 			if err := r.render(); err != nil {
 				return errors.Wrap(err, "renders "+localname)
 			}
+		}
+	}
+
+	for _, r := range m.raws {
+		if err := os.MkdirAll(filepath.Dir(r.fullname), 0755); err != nil {
+			return errors.Wrap(err, "create a directory for "+r.localname)
+		}
+
+		if err := r.render(); err != nil {
+			return errors.Wrap(err, "renders "+r.localname)
 		}
 	}
 

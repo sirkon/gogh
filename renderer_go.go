@@ -22,11 +22,11 @@ type GoRenderer[T Importer] struct {
 	name    string
 	pkg     *Package[T]
 	imports T
-	options []GoRendererOption[T]
+	options []RendererOption
 
-	comment *bytes.Buffer
-	vals    map[string]interface{}
-	blocks  []*bytes.Buffer
+	cmt    *bytes.Buffer
+	vals   map[string]interface{}
+	blocks []*bytes.Buffer
 }
 
 // Imports returns imports controller
@@ -71,6 +71,8 @@ func (r *GoRenderer[T]) S(line string, a ...interface{}) string {
 // yet all records made into it will appear before lines written into THIS GoRenderer
 // after this function call.
 func (r *GoRenderer[T]) Z() *GoRenderer[T] {
+	r.last()
+
 	res := &GoRenderer[T]{
 		pkg:     r.pkg,
 		imports: r.imports,
@@ -80,28 +82,6 @@ func (r *GoRenderer[T]) Z() *GoRenderer[T] {
 	r.blocks = append(r.blocks, &bytes.Buffer{})
 
 	return res
-}
-
-// Vals appends values into the rendering context
-func (r *GoRenderer[T]) Vals(vals map[string]interface{}) {
-	defer handlePanic()
-
-	for name, value := range vals {
-		if v, ok := r.vals[name]; ok && value != v {
-			panic(errors.Newf("try to set up a value '%s' that does exist", name))
-		}
-
-		r.vals[name] = value
-	}
-}
-
-// Val a shortcut for Vals with the single value
-func (r *GoRenderer[T]) Val(name string, value interface{}) {
-	if v, ok := r.vals[name]; ok && value != v {
-		panic(errors.Newf("try to set up a value '%s' that does exist", name))
-	}
-
-	r.vals[name] = value
 }
 
 // Type render type name based on go/types representation
@@ -261,15 +241,15 @@ func (r *GoRenderer[T]) localPath() string {
 
 func (r *GoRenderer[T]) render() error {
 	for _, option := range r.options {
-		if !option(hiddenType{}, r) {
+		if !option(r) {
 			return nil
 		}
 	}
 
 	data := &bytes.Buffer{}
 
-	if r.comment != nil {
-		_, _ = io.Copy(data, r.comment)
+	if r.cmt != nil {
+		_, _ = io.Copy(data, r.cmt)
 		data.WriteString("\n")
 	}
 
@@ -326,6 +306,22 @@ func (r *GoRenderer[T]) renderCtx() *format.ContextBuilder {
 	}
 
 	return res
+}
+
+func (r *GoRenderer[T]) comment() *bytes.Buffer {
+	if r.cmt == nil {
+		r.cmt = &bytes.Buffer{}
+	}
+
+	return r.cmt
+}
+
+func (r *GoRenderer[T]) setVals(vals map[string]interface{}) {
+	for name, value := range vals {
+		if v, ok := r.vals[name]; ok && v != value {
+			panic(errors.Newf("attempt to '%s' into different value", name))
+		}
+	}
 }
 
 func (r *GoRenderer[T]) newline() {

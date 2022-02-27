@@ -106,9 +106,13 @@ func (i *CustomImporter) Company(relpath string) *gogh.ImportAliasControl {
 }
 ```
 
-And you will just
+
+And then just
 
 ```go
+mod, err := gogh.New(gogh.GoFmt, NewCustomImporter)
+…
+
 r.Imports().Company("configs").Ref("configs")
 r.L(`// Config service $0 config definition`, serviceName)
 r.L(`type Config struct{`)

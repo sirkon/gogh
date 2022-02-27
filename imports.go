@@ -6,6 +6,7 @@ import (
 
 	"github.com/sirkon/errors"
 	"github.com/sirkon/jsonexec"
+	"github.com/sirkon/message"
 )
 
 // Importer an abstraction for Imports extensions
@@ -51,11 +52,13 @@ func (i *Imports) Add(pkgpath string) *ImportAliasControl {
 		alias = i.getPkgName(pkgpath)
 	}
 
-	return &ImportAliasControl{
+	res := &ImportAliasControl{
 		i:       i,
 		pkgpath: pkgpath,
 		alias:   alias,
 	}
+	i.pending = append(i.pending, res)
+	return res
 }
 
 // Module to import a package placed with the current module
@@ -82,6 +85,7 @@ func (i *Imports) getPkgName(pkgpath string) string {
 
 func (i *Imports) pushImports() {
 	for _, a := range i.pending {
+		message.Debugf("push import %s of %s", a.alias, a.pkgpath)
 		a.push()
 	}
 	i.pending = i.pending[:0]
@@ -170,16 +174,19 @@ func (a *ImportAliasControl) push() string {
 	}
 
 	conflict = false
-	alias := a.i.corrector(a.alias, a.pkgpath)
-	if alias != "" {
-		for pkgpath, pkgalias := range a.i.pkgs {
-			if pkgalias == alias {
-				if pkgpath == a.pkgpath {
-					return alias
-				}
+	var alias string
+	if a.i.corrector != nil {
+		alias = a.i.corrector(a.alias, a.pkgpath)
+		if alias != "" {
+			for pkgpath, pkgalias := range a.i.pkgs {
+				if pkgalias == alias {
+					if pkgpath == a.pkgpath {
+						return alias
+					}
 
-				conflict = true
-				break
+					conflict = true
+					break
+				}
 			}
 		}
 	}

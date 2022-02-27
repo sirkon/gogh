@@ -41,6 +41,8 @@ func (p *Package[T]) Go(name string, opts ...GoRendererOption[T]) *GoRenderer[T]
 				}
 			}
 
+			res.vals[name] = value
+
 			return ""
 		},
 		cached: func(pkgpath string) string {

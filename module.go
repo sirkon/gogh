@@ -118,11 +118,14 @@ func (m *Module[T]) getPackage(name, pkgpath string) (*Package[T], error) {
 		}
 	}
 
-	return &Package[T]{
+	res := &Package[T]{
 		mod:  m,
 		rel:  pkgpath,
 		name: name,
-	}, nil
+		rs:   map[string]*GoRenderer[T]{},
+	}
+	m.pkgs[pkgpath] = res
+	return res, nil
 }
 
 // validatePackagePath pkgpath must no be absolute nor must not have . or .. as its components
@@ -137,11 +140,15 @@ func validatePackagePath(pkgpath string) error {
 	dir, base := path.Split(pkgpath)
 	switch dir {
 	case "./", "../", ".", "..":
-		return errors.New("there must be no . or .. as a path components")
+		return errors.Newf("there must be no . or .. as a path components")
 	}
 	switch base {
 	case ".", "..":
 		return errors.New("there must be no . or .. as a path components")
+	}
+
+	if dir == "" {
+		return nil
 	}
 
 	dir = path.Clean(dir)

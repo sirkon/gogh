@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/sirkon/errors"
-	"github.com/sirkon/go-format"
+	"github.com/sirkon/go-format/v2"
 	"github.com/sirkon/message"
 	"github.com/sirkon/protoast/ast"
 )
@@ -278,7 +278,7 @@ func (r *GoRenderer[T]) render() error {
 	data.WriteString("\n\n")
 
 	if len(r.imports.Imports().pkgs) > 0 {
-		data.WriteString("(")
+		data.WriteString("import (")
 		for pkgpath, alias := range r.imports.Imports().pkgs {
 			name := r.imports.Imports().getPkgName(pkgpath)
 			if name != alias {
@@ -288,7 +288,8 @@ func (r *GoRenderer[T]) render() error {
 
 			data.WriteByte('"')
 			data.WriteString(pkgpath)
-			data.WriteString(`"\n`)
+			data.WriteString(`"`)
+			data.WriteByte('\n')
 		}
 		data.WriteString(")\n\n")
 	}

@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/sirkon/errors"
-	"github.com/sirkon/go-format"
+	"github.com/sirkon/go-format/v2"
 )
 
 var _ format.Formatter = casesFormatter{}

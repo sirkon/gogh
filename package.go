@@ -70,6 +70,11 @@ func (p *Package[T]) Go(name string, opts ...RendererOption) *GoRenderer[T] {
 	return res
 }
 
+// Raw creates new or reuse existing plain text file renderer.
+func (p *Package[T]) Raw(name string, opts ...RendererOption) *RawRenderer {
+	return p.mod.Raw(path.Join(p.rel, name))
+}
+
 // Path returns package path
 func (p *Package[T]) Path() string {
 	return path.Join(p.mod.name, p.rel)

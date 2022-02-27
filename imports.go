@@ -1,194 +1,218 @@
 package gogh
 
 import (
-	"bytes"
-	"errors"
-	"fmt"
-	"sort"
+	"math"
 	"strconv"
-	"strings"
-	"unicode"
 
-	"github.com/chonla/roman-number-go"
+	"github.com/sirkon/errors"
+	"github.com/sirkon/jsonexec"
 )
 
-// NewImports constructs new imports collector
-func NewImports(weighter Weighter) *Imports {
-	return &Imports{
-		pkgs:     map[string]string{},
-		weighter: weighter,
+// Importer an abstraction for Imports extensions
+type Importer interface {
+	Add(pkgpath string) *ImportAliasControl
+	Module(relpath string) *ImportAliasControl
+	Imports() *Imports
+}
+
+// AliasCorrector this function may alter alias for a package with the given name and path in case of name conflict.
+// Empty string means no correction for the given pkgpath.
+type AliasCorrector func(name, pkgpath string) string
+
+// Imports a facility to add imports in the GoFile source file
+type Imports struct {
+	pkgs      map[string]string
+	varcapter func(name string, value string) string
+	cached    func(pkgpath string) string
+	cacher    func(alias, pkgpath string)
+	inprocess func(pkgpath string) string
+	namer     func(relpath string) string
+	pending   []*ImportAliasControl
+	corrector AliasCorrector
+}
+
+// Imports to satisfy Importer
+func (i *Imports) Imports() *Imports {
+	return i
+}
+
+// Add registers new import if it wasn't before.
+func (i *Imports) Add(pkgpath string) *ImportAliasControl {
+	if err := validatePackagePath(pkgpath); err != nil {
+		panic(errors.Wrapf(err, "validate package path '%s'", pkgpath))
+	}
+
+	i.pushImports()
+
+	var alias string
+	if v := i.cached(pkgpath); v != "" {
+		alias = v
+	} else {
+		alias = i.getPkgName(pkgpath)
+	}
+
+	return &ImportAliasControl{
+		i:       i,
+		pkgpath: pkgpath,
+		alias:   alias,
 	}
 }
 
-// Imports is a collector to gather packages imports in of a single Renderer source file
-type Imports struct {
-	pkgs     map[string]string
-	weighter Weighter
+// Module to import a package placed with the current module
+func (i *Imports) Module(relpath string) *ImportAliasControl {
+	return i.Add(i.namer(relpath))
 }
 
-// Add adds new package into the list of packages
-func (i *Imports) Add(alias string, path string) {
-	var err error
+func (i *Imports) getPkgName(pkgpath string) string {
+	// this can be a package which is under rendering currently, check it
+	if v := i.inprocess(pkgpath); v != "" {
+		return v
+	}
+
+	// it can be only outer package if we reach here, use go list
+	var pkginfo struct {
+		Name string
+	}
+	if err := jsonexec.Run(&pkginfo, "go", "list", "--json", pkgpath); err != nil {
+		panic(errors.Wrapf(err, "get package %s info", pkgpath))
+	}
+
+	return pkginfo.Name
+}
+
+func (i *Imports) pushImports() {
+	for _, a := range i.pending {
+		a.push()
+	}
+	i.pending = i.pending[:0]
+}
+
+// ImportAliasControl allows to assign an alias for package import
+type ImportAliasControl struct {
+	i       *Imports
+	pkgpath string
+	alias   string
+}
+
+// As assign given alias for the import. Conflicting one may cause a panic.
+func (a *ImportAliasControl) As(alias string) *ImportReferenceControl {
+	if err := validatePackageName(alias); err != nil {
+		panic(errors.Wrapf(err, "validate alias name '%s'", alias))
+	}
+
+	for pkgpath, pkgalias := range a.i.pkgs {
+		if pkgalias == alias && pkgpath != a.pkgpath {
+			panic(
+				errors.Newf("name or alias '%s' has been taken before for package %s", alias, pkgpath),
+			)
+		}
+
+		if pkgpath == a.pkgpath && pkgalias != a.alias {
+			panic(
+				errors.Newf(
+					"package %s has been imported before with the different name or alias %s != %s",
+					pkgpath,
+					pkgalias,
+					alias,
+				),
+			)
+		}
+	}
+
+	a.alias = alias
+	return &ImportReferenceControl{
+		a: a,
+	}
+}
+
+// Ref adds a package name or alias into the renderer's context under the given name ref
+func (a *ImportAliasControl) Ref(ref string) {
+	a.push()
+
+	if prev := a.i.varcapter(ref, a.alias); prev != "" {
+		panic(
+			errors.Newf(
+				"value '%s' has been set before with the different content '%s' != '%s'",
+				ref,
+				prev,
+				a.alias,
+			),
+		)
+	}
+}
+
+func (a *ImportAliasControl) push() string {
+	if v, ok := a.i.pkgs[a.pkgpath]; ok {
+		return v
+	}
+
 	defer func() {
-		if err == nil {
-			return
-		}
-		switch alias {
-		case "":
-			panic(fmt.Errorf(`add import of "%s"': %w`, path, err))
-		default:
-			panic(fmt.Errorf(`add import of "%s" as %s: %w`, path, alias, err))
-		}
+		a.i.cacher(a.pkgpath, a.alias)
 	}()
 
-	switch path {
-	case "":
-		err = fmt.Errorf("import path cannot be empty")
-		return
-	case "C":
-		if alias != "" {
-			err = fmt.Errorf(`"C" import path must be without an alias`)
-			return
+	// look for alias conflicts
+	var conflict bool
+	for pkgpath, pkgalias := range a.i.pkgs {
+		if pkgalias == a.alias {
+			if pkgpath == a.pkgpath {
+				return a.alias
+			}
+
+			conflict = true
+			break
 		}
 	}
 
-	if prev, ok := i.pkgs[path]; ok {
-		if prev != alias {
-			switch {
-			case alias == "":
-				err = fmt.Errorf(`already added with custom alias %s`, prev)
-				return
-			case prev == "":
-				err = errors.New(`already added without an alias`)
-				return
-			default:
-				err = fmt.Errorf(`already added with different alias %s`, prev)
-				return
+	// there is the conflict, try alias corrector first
+	if !conflict {
+		a.i.pkgs[a.pkgpath] = a.alias
+		return a.alias
+	}
+
+	conflict = false
+	alias := a.i.corrector(a.alias, a.pkgpath)
+	if alias != "" {
+		for pkgpath, pkgalias := range a.i.pkgs {
+			if pkgalias == alias {
+				if pkgpath == a.pkgpath {
+					return alias
+				}
+
+				conflict = true
+				break
 			}
 		}
-		return
 	}
 
-	i.pkgs[path] = alias
-}
+	// there's a the conflict even with alias corrector, will look for first free <alias>N
+outer:
+	for i := 2; i < math.MaxInt; i++ {
+		alias = a.alias + strconv.Itoa(i)
+		for pkgpath, pkgalias := range a.i.pkgs {
+			if pkgalias == alias {
+				if pkgpath == a.pkgpath {
+					return alias
+				}
 
-// Import representation of import path
-type Import struct {
-	Alias string
-	Path  string
-}
-
-func (i Import) String() string {
-	switch i.Alias {
-	case "":
-		return fmt.Sprintf(`"%s"`, i.Path)
-	default:
-		return fmt.Sprintf(`%s "%s"`, i.Alias, i.Path)
-	}
-}
-
-var _ sort.Interface = ImportsGroup{}
-
-// ImportsGroup representation of import groups. Has special heuristic sorting
-type ImportsGroup []Import
-
-// Len for sort.Interface implementation
-func (g ImportsGroup) Len() int {
-	return len(g)
-}
-
-// Less  for sort.Interface implementation
-func (g ImportsGroup) Less(i, j int) bool {
-	path1 := g[i].Path
-	path2 := g[j].Path
-
-	return heuristicCmp(path1, path2)
-}
-
-func heuristicCmp(a, b string) bool {
-	if a == b {
-		return false
-	}
-	if strings.HasPrefix(b, a) {
-		return true
-	}
-	if strings.HasPrefix(a, b) {
-		return false
-	}
-
-	// cut common prefix of paths. The rest will not be empty on both.
-	for k := 0; k < len(a); k++ {
-		if a[k] == b[k] {
-			continue
+				continue outer
+			}
 		}
-		a = a[k:]
-		b = b[k:]
+
+		// found no conflict if in here
+		a.alias = alias
 		break
 	}
-	isDigit1 := unicode.IsDigit([]rune(a)[0])
-	isDigit2 := unicode.IsDigit([]rune(b)[0])
-	switch {
-	case !isDigit1 && isDigit2:
-		return true
-	case isDigit1 && !isDigit2:
-		return false
-	case isDigit1 && isDigit2:
-		// нужно определить, у кого числа больше
-		return headNumber(a) < headNumber(b)
-	default:
-		ar := tryRoman(a)
-		br := tryRoman(b)
-		if ar > 0 && br > 0 {
-			return ar < br
-		}
-		return a < b
-	}
+
+	a.i.pkgs[a.pkgpath] = a.alias
+	return a.alias
 }
 
-func tryRoman(rest string) int {
-	r := roman.NewRoman()
-	return r.ToNumber(rest)
+// ImportReferenceControl allows to add a variable having package name (or alias) in the renderer scope
+type ImportReferenceControl struct {
+	a *ImportAliasControl
 }
 
-func headNumber(rest string) uint64 {
-	var buf bytes.Buffer
-	for _, r := range []rune(rest) {
-		if unicode.IsDigit(r) {
-			buf.WriteRune(r)
-		}
-		break
-	}
-	res, _ := strconv.ParseUint(buf.String(), 10, 64)
-	return res
-}
-
-// Swap  for sort.Interface implementation
-func (g ImportsGroup) Swap(i, j int) {
-	g[i], g[j] = g[j], g[i]
-}
-
-// Result groups imports with their weight and return as a slice of groups
-func (i *Imports) Result() []ImportsGroup {
-	groups := map[int]ImportsGroup{}
-
-	var weights []int
-	for path, alias := range i.pkgs {
-		weight := i.weighter.Weight(path)
-		if _, ok := groups[weight]; !ok {
-			weights = append(weights, weight)
-		}
-		groups[weight] = append(groups[weight], Import{
-			Alias: alias,
-			Path:  path,
-		})
-	}
-
-	sort.Ints(weights)
-	var res []ImportsGroup
-	for _, weight := range weights {
-		sort.Sort(groups[weight])
-		res = append(res, groups[weight])
-	}
-
-	return res
+// Ref adds a package name or alias into the renderering context under the given name ref
+func (r *ImportReferenceControl) Ref(ref string) {
+	r.a.Ref(ref)
 }

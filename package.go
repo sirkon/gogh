@@ -3,6 +3,8 @@ package gogh
 import (
 	"fmt"
 	"path"
+
+	"github.com/sirkon/gogh/internal/blocks"
 )
 
 // Package represents a package of the current module
@@ -30,6 +32,8 @@ func (p *Package[T]) Go(name string, opts ...RendererOption) *GoRenderer[T] {
 		pkg:     p,
 		options: opts,
 		vals:    map[string]interface{}{},
+		blocks:  blocks.New(),
+		uniqs:   map[string]struct{}{},
 	}
 
 	imports := &Imports{
@@ -42,6 +46,7 @@ func (p *Package[T]) Go(name string, opts ...RendererOption) *GoRenderer[T] {
 			}
 
 			res.vals[name] = value
+			res.uniqs[value] = struct{}{}
 
 			return ""
 		},

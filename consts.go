@@ -1,7 +1,7 @@
 package gogh
 
 const (
-	matissPkg    = "/matiss"
+	goghPkg      = "/gogh"
 	goFormatPkg  = "/go-format"
 	runtimeStuff = "/src/runtime/"
 )

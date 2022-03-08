@@ -1,3 +1,5 @@
+github.com/blang/semver/v4 v4.0.0 h1:1PFHFE6yCCTv8C1TeyNNarDzntLi7wMI5i/pzqYIsAM=
+github.com/blang/semver/v4 v4.0.0/go.mod h1:IbckMUScFkM3pff0VJDNKRiT6TG/YpiHIM2yvyW5YoQ=
 github.com/chonla/roman-number-go v0.0.0-20181101035413-6768129de021 h1:F7ux9YUTBF8wykFrRhNJIuLyAkJhD6hs98M/lJM0ZW4=
 github.com/chonla/roman-number-go v0.0.0-20181101035413-6768129de021/go.mod h1:mgLs523CF5p4A7oIy2Es5ZxuKnG3xhT3Ff0L7J/2J1c=
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=

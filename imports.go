@@ -7,7 +7,6 @@ import (
 	"github.com/chonla/roman-number-go"
 	"github.com/sirkon/errors"
 	"github.com/sirkon/jsonexec"
-	"github.com/sirkon/message"
 )
 
 // Importer an abstraction for Imports extensions
@@ -86,7 +85,6 @@ func (i *Imports) getPkgName(pkgpath string) string {
 
 func (i *Imports) pushImports() {
 	for _, a := range i.pending {
-		message.Debugf("push import %s of %s", a.alias, a.pkgpath)
 		a.push()
 	}
 	i.pending = i.pending[:0]

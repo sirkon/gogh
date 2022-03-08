@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"go/types"
 	"io"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/sirkon/errors"
 	"github.com/sirkon/go-format/v2"
+	"github.com/sirkon/gogh/internal/blocks"
 	"github.com/sirkon/message"
 	"github.com/sirkon/protoast/ast"
 )
@@ -26,7 +29,8 @@ type GoRenderer[T Importer] struct {
 
 	cmt    *bytes.Buffer
 	vals   map[string]interface{}
-	blocks []*bytes.Buffer
+	blocks *blocks.Blocks
+	uniqs  map[string]struct{}
 }
 
 // Imports returns imports controller
@@ -41,7 +45,7 @@ func (r *GoRenderer[T]) N() {
 	r.newline()
 }
 
-// L append formatted text
+// L branch formatted text
 func (r *GoRenderer[T]) L(line string, a ...interface{}) {
 	defer handlePanic()
 	r.imports.Imports().pushImports()
@@ -49,7 +53,7 @@ func (r *GoRenderer[T]) L(line string, a ...interface{}) {
 	r.newline()
 }
 
-// R append raw text
+// R branch raw text
 func (r *GoRenderer[T]) R(line string) {
 	defer handlePanic()
 	r.imports.Imports().pushImports()
@@ -67,8 +71,45 @@ func (r *GoRenderer[T]) S(line string, a ...interface{}) string {
 	return res.String()
 }
 
-// Z lazy writing. Return *GoRenderer instance where you can write just like forever
-// yet all records made into it will appear before lines written into THIS GoRenderer
+// Uniq returns a unique value within the scope
+func (r *GoRenderer[T]) Uniq(name string) string {
+	if _, ok := r.uniqs[name]; !ok {
+		r.uniqs[name] = struct{}{}
+		return name
+	}
+
+	for i := 1; i < math.MaxInt; i++ {
+		n := name + strconv.Itoa(i+1)
+		if _, ok := r.uniqs[n]; !ok {
+			r.uniqs[n] = struct{}{}
+			return n
+		}
+	}
+
+	panic(errors.Newf("cannot find scope unique name for given base '%s'", name))
+}
+
+// Scope returns a new renderer which provides a scope providing unique values based on the given one
+func (r *GoRenderer[T]) Scope() *GoRenderer[T] {
+	uniqs := map[string]struct{}{}
+	for k, v := range r.uniqs {
+		uniqs[k] = v
+	}
+
+	return &GoRenderer[T]{
+		name:    r.name,
+		pkg:     r.pkg,
+		imports: r.imports,
+		options: r.options,
+		cmt:     r.cmt,
+		vals:    r.vals,
+		blocks:  r.blocks,
+		uniqs:   uniqs,
+	}
+}
+
+// Z lazy writing. Return secondary *GoRenderer instance where you can write just like
+// forever yet all records made into it will appear before lines written into THIS GoRenderer
 // after this function call.
 func (r *GoRenderer[T]) Z() *GoRenderer[T] {
 	r.last()
@@ -77,9 +118,8 @@ func (r *GoRenderer[T]) Z() *GoRenderer[T] {
 		pkg:     r.pkg,
 		imports: r.imports,
 		vals:    r.vals,
-		blocks:  []*bytes.Buffer{r.last()},
+		blocks:  r.blocks.Next(),
 	}
-	r.blocks = append(r.blocks, &bytes.Buffer{})
 
 	return res
 }
@@ -94,7 +134,26 @@ func (r *GoRenderer[T]) Type(t types.Type) string {
 			return typ.Name()
 		}
 		alias := r.imports.Add(pkg.Path()).push()
-		return alias + "." + typ.Name()
+
+		var res strings.Builder
+		res.WriteString(alias)
+		res.WriteByte('.')
+		res.WriteString(typ.Name())
+		if v.TypeParams().Len() != 0 {
+			res.WriteByte('[')
+			for i := 0; i < v.TypeParams().Len(); i++ {
+				if i > 0 {
+					res.WriteString(", ")
+				}
+
+				res.WriteString(v.TypeParams().At(i).Obj().Name())
+				res.WriteByte(' ')
+				res.WriteString(r.Type(v.TypeParams().At(i).Obj().Type()))
+			}
+			res.WriteByte(']')
+		}
+
+		return res.String()
 	case *types.Pointer:
 		return "*" + r.Type(v.Elem())
 	case *types.Slice:
@@ -274,7 +333,7 @@ func (r *GoRenderer[T]) render() error {
 		data.WriteString(")\n\n")
 	}
 
-	for _, block := range r.blocks {
+	for _, block := range r.blocks.Collect() {
 		_, _ = io.Copy(data, block)
 	}
 
@@ -292,11 +351,7 @@ func (r *GoRenderer[T]) render() error {
 }
 
 func (r *GoRenderer[T]) last() *bytes.Buffer {
-	if len(r.blocks) == 0 {
-		r.blocks = append(r.blocks, &bytes.Buffer{})
-	}
-
-	return r.blocks[len(r.blocks)-1]
+	return r.blocks.Data()
 }
 
 func (r *GoRenderer[T]) renderCtx() *format.ContextBuilder {
@@ -392,7 +447,7 @@ func getOuterFrame() *runtime.Frame {
 func assembleWholeFrame(startSize int) *runtime.Frames {
 	for {
 		pc := make([]uintptr, startSize)
-		n := runtime.Callers(0, pc)
+		n := runtime.Callers(2, pc)
 		if n == 0 {
 			return nil
 		}
@@ -408,7 +463,7 @@ func assembleWholeFrame(startSize int) *runtime.Frames {
 }
 
 func isInternalStuff(path string) bool {
-	if strings.Index(path, matissPkg) >= 0 {
+	if strings.Index(path, goghPkg) >= 0 {
 		return true
 	}
 

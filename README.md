@@ -117,7 +117,7 @@ r.Imports().Company("configs").Ref("configs")
 r.L(`// Config service $0 config definition`, serviceName)
 r.L(`type Config struct{`)
 r.L(`    TLS *$configs.TLS`)
-r.L(`    Service *&configs.Service`)
+r.L(`    Service *$configs.Service`)
 r.L(`}`)
 ```
 

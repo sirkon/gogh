@@ -15,7 +15,7 @@ type RawRenderer struct {
 	fullname  string
 	options   []RendererOption
 
-	vals   map[string]interface{}
+	vals   map[string]any
 	blocks []*bytes.Buffer
 }
 
@@ -25,7 +25,7 @@ func (r *RawRenderer) N() {
 }
 
 // L puts a single formatted line and new line character
-func (r *RawRenderer) L(line string, a ...interface{}) {
+func (r *RawRenderer) L(line string, a ...any) {
 	renderLine(r.last(), line, r.rendererCtx(), a...)
 	r.last().WriteByte('\n')
 }
@@ -37,7 +37,7 @@ func (r *RawRenderer) R(line string) {
 }
 
 // S same as L, just returns string insert of pushing it
-func (r *RawRenderer) S(line string, a ...interface{}) string {
+func (r *RawRenderer) S(line string, a ...any) string {
 	var dst bytes.Buffer
 	renderLine(&dst, line, r.rendererCtx(), a...)
 
@@ -49,7 +49,7 @@ func (r *RawRenderer) S(line string, a ...interface{}) string {
 func (r *RawRenderer) Z() *RawRenderer {
 	r.last()
 
-	vals := make(map[string]interface{}, len(r.vals))
+	vals := make(map[string]any, len(r.vals))
 	for name, value := range r.vals {
 		r.vals[name] = value
 	}
@@ -75,7 +75,7 @@ func (r *RawRenderer) comment() *bytes.Buffer {
 	panic("makes no sense for raw rendering")
 }
 
-func (r *RawRenderer) setVals(vals map[string]interface{}) {
+func (r *RawRenderer) setVals(vals map[string]any) {
 	for name, value := range vals {
 		if v, ok := r.vals[name]; ok && value != v {
 			panic(errors.Newf("attempt to set '%s into different value", name))

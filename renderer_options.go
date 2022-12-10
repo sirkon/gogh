@@ -17,7 +17,7 @@ type renderingOptionsHandler interface {
 	// comment file comment writer
 	comment() *bytes.Buffer
 	// setVals set rendering context values
-	setVals(vals map[string]interface{})
+	setVals(vals map[string]any)
 }
 
 var (
@@ -63,7 +63,7 @@ func Autogen(appname string) RendererOption {
 }
 
 // WithValues puts given named values into the rendering context
-func WithValues(vals map[string]interface{}) RendererOption {
+func WithValues(vals map[string]any) RendererOption {
 	return func(r renderingOptionsHandler) bool {
 		r.setVals(vals)
 		return true
@@ -71,9 +71,9 @@ func WithValues(vals map[string]interface{}) RendererOption {
 }
 
 // WithValue shortcut for WithValues with the single named value
-func WithValue(name string, value interface{}) RendererOption {
+func WithValue(name string, value any) RendererOption {
 	return func(r renderingOptionsHandler) bool {
-		r.setVals(map[string]interface{}{
+		r.setVals(map[string]any{
 			name: value,
 		})
 		return true

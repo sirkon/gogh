@@ -28,7 +28,7 @@ type GoRenderer[T Importer] struct {
 	options []RendererOption
 
 	cmt    *bytes.Buffer
-	vals   map[string]interface{}
+	vals   map[string]any
 	blocks *blocks.Blocks
 	uniqs  map[string]struct{}
 }
@@ -46,7 +46,7 @@ func (r *GoRenderer[T]) N() {
 }
 
 // L branch formatted text
-func (r *GoRenderer[T]) L(line string, a ...interface{}) {
+func (r *GoRenderer[T]) L(line string, a ...any) {
 	defer handlePanic()
 	r.imports.Imports().pushImports()
 	renderLine(r.last(), line, r.renderCtx(), a...)
@@ -62,7 +62,7 @@ func (r *GoRenderer[T]) R(line string) {
 }
 
 // S same as L but returns string instead of buffer write
-func (r *GoRenderer[T]) S(line string, a ...interface{}) string {
+func (r *GoRenderer[T]) S(line string, a ...any) string {
 	defer handlePanic()
 	r.imports.Imports().pushImports()
 	var res bytes.Buffer
@@ -71,11 +71,20 @@ func (r *GoRenderer[T]) S(line string, a ...interface{}) string {
 	return res.String()
 }
 
-// Uniq returns a unique value within the scope
-func (r *GoRenderer[T]) Uniq(name string) string {
+// Uniq returns unique value within the scope. In case of a conflict
+// an optional suffix will be used once provided at first.
+func (r *GoRenderer[T]) Uniq(name string, optSuffix ...string) string {
 	if _, ok := r.uniqs[name]; !ok {
 		r.uniqs[name] = struct{}{}
 		return name
+	}
+
+	if len(optSuffix) > 0 {
+		try := name + Public(optSuffix[0])
+		if _, ok := r.uniqs[try]; !ok {
+			r.uniqs[try] = struct{}{}
+			return try
+		}
 	}
 
 	for i := 1; i < math.MaxInt; i++ {
@@ -89,7 +98,7 @@ func (r *GoRenderer[T]) Uniq(name string) string {
 	panic(errors.Newf("cannot find scope unique name for given base '%s'", name))
 }
 
-// Scope returns a new renderer which provides a scope providing unique values based on the given one
+// Scope returns a new renderer which provides a scope having unique values based on the given one
 func (r *GoRenderer[T]) Scope() *GoRenderer[T] {
 	uniqs := map[string]struct{}{}
 	for k, v := range r.uniqs {
@@ -159,7 +168,7 @@ func (r *GoRenderer[T]) Type(t types.Type) string {
 	case *types.Slice:
 		return "[]" + r.Type(v.Elem())
 	case *types.Interface:
-		// вообще, здесь может быть похитрее, но на практике мало кто использует нечто в духе `interface{ Method() }`
+		// Вообще, здесь может быть похитрее, но на практике мало кто использует нечто в духе `interface{ Method() }`
 		// в объявлениях параметров или возвращаемых значений, поэтому пока так. Но возможно придётся этим
 		// заморачиваться
 		return v.String()
@@ -253,7 +262,7 @@ func (r *GoRenderer[T]) Proto(t ast.Type) ProtocType {
 			case "DoubleValue", "FloatValue", "Int64Value", "UInt64Value",
 				"Int32Value", "UInt32Value", "BoolValue", "StringValue", "BytesValue":
 			default:
-				panic(errors.Newf("unsupported google wrapper Proto %s.%s", v.File.Package, v.Name))
+				panic(errors.Newf("unsupported google wrapper %s.%s", v.File.Package, v.Name))
 			}
 			return ProtocType{
 				pointer:  true,
@@ -371,7 +380,7 @@ func (r *GoRenderer[T]) comment() *bytes.Buffer {
 	return r.cmt
 }
 
-func (r *GoRenderer[T]) setVals(vals map[string]interface{}) {
+func (r *GoRenderer[T]) setVals(vals map[string]any) {
 	for name, value := range vals {
 		if v, ok := r.vals[name]; ok && v != value {
 			panic(errors.Newf("attempt to '%s' into different value", name))

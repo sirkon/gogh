@@ -31,7 +31,7 @@ func (p *Package[T]) Go(name string, opts ...RendererOption) *GoRenderer[T] {
 		name:    name,
 		pkg:     p,
 		options: opts,
-		vals:    map[string]interface{}{},
+		vals:    map[string]any{},
 		blocks:  blocks.New(),
 		uniqs:   map[string]struct{}{},
 	}

@@ -178,7 +178,7 @@ func (m *Module[T]) Raw(relpath string, opts ...RendererOption) *RawRenderer {
 		localname: localpath,
 		fullname:  fullpath,
 		options:   opts,
-		vals:      map[string]interface{}{},
+		vals:      map[string]any{},
 	}
 	m.raws[relpath] = res
 	return res

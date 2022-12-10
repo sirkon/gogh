@@ -46,7 +46,7 @@ func (c casesFormatter) Format(s string) (string, error) {
 	return c.value, nil
 }
 
-func renderLine(dst *bytes.Buffer, line string, bctx *format.ContextBuilder, a ...interface{}) {
+func renderLine(dst *bytes.Buffer, line string, bctx *format.ContextBuilder, a ...any) {
 	if bctx == nil {
 		bctx = format.NewContextBuilder()
 	}

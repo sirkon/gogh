@@ -1,6 +1,7 @@
 package gogh
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"go/types"
@@ -27,10 +28,13 @@ type GoRenderer[T Importer] struct {
 	imports T
 	options []RendererOption
 
-	cmt    *bytes.Buffer
-	vals   map[string]any
-	blocks *blocks.Blocks
-	uniqs  map[string]struct{}
+	cmt                 *bytes.Buffer
+	vals                map[string]any
+	blocks              *blocks.Blocks
+	uniqs               map[string]struct{}
+	preImport           map[string]struct{}
+	reuse               bool
+	reuseFirstImportPos int
 }
 
 // Imports returns imports controller
@@ -308,42 +312,82 @@ func (r *GoRenderer[T]) localPath() string {
 }
 
 func (r *GoRenderer[T]) render() error {
-	for _, option := range r.options {
-		if !option(r) {
-			return nil
-		}
-	}
-
 	data := &bytes.Buffer{}
 
-	if r.cmt != nil {
-		_, _ = io.Copy(data, r.cmt)
-		data.WriteString("\n")
-	}
-
-	data.WriteString("package ")
-	data.WriteString(r.pkg.name)
-	data.WriteString("\n\n")
-
-	if len(r.imports.Imports().pkgs) > 0 {
-		data.WriteString("import (")
-		for pkgpath, alias := range r.imports.Imports().pkgs {
-			name := r.imports.Imports().getPkgName(pkgpath)
-			if name != alias {
-				data.WriteString(alias)
-				data.WriteByte(' ')
+	if !r.reuse {
+		for _, option := range r.options {
+			if !option(r) {
+				return nil
 			}
-
-			data.WriteByte('"')
-			data.WriteString(pkgpath)
-			data.WriteString(`"`)
-			data.WriteByte('\n')
 		}
+
+		if r.cmt != nil {
+			_, _ = io.Copy(data, r.cmt)
+			data.WriteString("\n")
+		}
+
+		data.WriteString("package ")
+		data.WriteString(r.pkg.name)
+		data.WriteString("\n\n")
+
+		if len(r.imports.Imports().pkgs) > 0 {
+			data.WriteString("import (")
+			for pkgpath, alias := range r.imports.Imports().pkgs {
+				name := r.imports.Imports().getPkgName(pkgpath)
+				if name != alias {
+					data.WriteString(alias)
+					data.WriteByte(' ')
+				}
+
+				data.WriteByte('"')
+				data.WriteString(pkgpath)
+				data.WriteString(`"`)
+				data.WriteByte('\n')
+			}
+		}
+
 		data.WriteString(")\n\n")
 	}
 
 	for _, block := range r.blocks.Collect() {
 		_, _ = io.Copy(data, block)
+	}
+
+	if r.reuse && len(r.imports.Imports().pkgs) > 0 {
+		var tmp bytes.Buffer
+		s := bufio.NewScanner(data)
+		var i int
+		for s.Scan() {
+			if i == r.reuseFirstImportPos {
+				tmp.WriteString("import (\n")
+
+				for pkgpath, alias := range r.imports.Imports().pkgs {
+					if _, ok := r.preImport[pkgpath]; ok {
+						continue
+					}
+
+					name := r.imports.Imports().getPkgName(pkgpath)
+					if name != alias {
+						tmp.WriteString(alias)
+						tmp.WriteByte(' ')
+					}
+
+					tmp.WriteByte('"')
+					tmp.WriteString(pkgpath)
+					tmp.WriteString(`"`)
+					tmp.WriteByte('\n')
+				}
+
+				tmp.WriteString(")\n\n")
+			}
+
+			tmp.Write(s.Bytes())
+			tmp.WriteByte('\n')
+			i++
+		}
+
+		data.Reset()
+		_, _ = tmp.WriteTo(data)
 	}
 
 	res, err := r.pkg.mod.fmt(data.Bytes())

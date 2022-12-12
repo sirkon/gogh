@@ -121,7 +121,21 @@ r.L(`    Service *$configs.Service`)
 r.L(`}`)
 ```
 
-And remember, using `Ref` to assign rendering context value is the preferable way to access imported packages:
+## Helpful advices.
+* Use `Ref` to assign rendering context value is the preferable way to access imported packages:
 `*gogh.GoRenderer` will take care of conflicting names, aliases, etc. Just make sure reference name is unique for the
 renderer.
+* Use type aliases if your function calls have renderers in their arguments. Because it is awkward to have something 
+  like
+  ```go 
+  func (g *Generator) renderSomething(r *gogh.GoRenderer[*gogh.Imports]) {…}
+  ```
+  Just put
+  ```go
+  type goRenderer = gogh.GoRenderer[*gogh.Imports]
+  ```
+  somewhere and then you will have
+  ```go
+  func (g *Generator) renderSomething(r *goRenderer) {…}
+  ```
 

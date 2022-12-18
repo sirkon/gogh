@@ -102,6 +102,27 @@ func (r *GoRenderer[T]) Uniq(name string, optSuffix ...string) string {
 	panic(errors.Newf("cannot find scope unique name for given base '%s'", name))
 }
 
+// Let adds a named constant into the current renderer.
+func (r *GoRenderer[T]) Let(name string, value any) {
+	if strings.TrimSpace(name) == "" {
+		panic(errors.New("context name must not be empty or white spaced only"))
+	}
+
+	if prev, ok := r.vals[name]; ok && prev != value {
+		panic(errors.Newf("attempt to change context constant for %s to a different value", name))
+	}
+
+	switch vv := value.(type) {
+	case string:
+		value = casesFormatter{value: vv}
+	case fmt.Stringer:
+		value = casesFormatter{value: vv.String()}
+	default:
+	}
+
+	r.vals[name] = value
+}
+
 // Scope returns a new renderer which provides a scope having unique values based on the given one
 func (r *GoRenderer[T]) Scope() *GoRenderer[T] {
 	uniqs := map[string]struct{}{}

@@ -18,6 +18,19 @@ func Private(head string, parts ...string) string {
 
 // Underscored returns underscored case of a word
 func Underscored(head string, parts ...string) string {
+	if len(parts) > 0 {
+		ps := []string{head}
+		ps = append(ps, parts...)
+		j := 0
+		for _, part := range ps {
+			if part != "" {
+				ps[j] = Underscored(part)
+				j++
+			}
+		}
+		return strings.Join(ps[:j], "_")
+	}
+
 	if strings.IndexByte(head, '_') >= 0 {
 		ps := strings.Split(head, "_")
 		ps = append(ps, parts...)

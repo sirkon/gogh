@@ -85,7 +85,7 @@ func (p *Package[T]) Go(name string, opts ...RendererOption) *GoRenderer[T] {
 // Works as Go without options otherwise.
 func (p *Package[T]) Reuse(name string) (*GoRenderer[T], error) {
 	fpath := filepath.Join(p.mod.root, p.rel, name)
-	if _, err := os.Stat(name); err != nil {
+	if _, err := os.Stat(fpath); err != nil {
 		if os.IsNotExist(err) {
 			return p.Go(name), nil
 		}

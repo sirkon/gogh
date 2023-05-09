@@ -110,7 +110,11 @@ func Proto(head string, parts ...string) string {
 func toCamelCase(public bool, head string, parts ...string) string {
 	var buf strings.Builder
 	split := strings.Split(head, "_")
-	for i, item := range append(split, parts...) {
+	var fsplit []string
+	for _, s := range split {
+		fsplit = append(fsplit, strings.Split(Underscored(s), "_")...)
+	}
+	for i, item := range append(fsplit, parts...) {
 		if public || i > 0 {
 			uppered := strings.ToUpper(item)
 			var candidate string
@@ -134,7 +138,7 @@ func toCamelCase(public bool, head string, parts ...string) string {
 			}
 			buf.WriteString(strings.Title(item))
 		} else {
-			buf.WriteString(item)
+			buf.WriteString(strings.ToLower(item))
 		}
 	}
 	return escapeReserveds(buf.String())

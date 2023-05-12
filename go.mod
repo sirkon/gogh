@@ -17,4 +17,5 @@ require (
 	github.com/pkg/errors v0.8.1 // indirect
 	github.com/sirkon/go-format v0.1.2 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
+	golang.org/x/exp v0.0.0-20230510235704-dd950f8aeaea // indirect
 )

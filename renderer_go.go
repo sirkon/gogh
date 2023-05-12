@@ -19,6 +19,7 @@ import (
 	"github.com/sirkon/gogh/internal/blocks"
 	"github.com/sirkon/message"
 	"github.com/sirkon/protoast/ast"
+	"golang.org/x/exp/maps"
 )
 
 // GoRenderer GoFile source file code generation
@@ -125,20 +126,15 @@ func (r *GoRenderer[T]) Let(name string, value any) {
 
 // Scope returns a new renderer which provides a scope having unique values based on the given one
 func (r *GoRenderer[T]) Scope() *GoRenderer[T] {
-	uniqs := map[string]struct{}{}
-	for k, v := range r.uniqs {
-		uniqs[k] = v
-	}
-
 	return &GoRenderer[T]{
 		name:    r.name,
 		pkg:     r.pkg,
 		imports: r.imports,
 		options: r.options,
 		cmt:     r.cmt,
-		vals:    r.vals,
+		vals:    maps.Clone(r.vals),
 		blocks:  r.blocks,
-		uniqs:   uniqs,
+		uniqs:   maps.Clone(r.uniqs),
 	}
 }
 

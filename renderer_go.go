@@ -103,6 +103,12 @@ func (r *GoRenderer[T]) Uniq(name string, optSuffix ...string) string {
 	panic(errors.Newf("cannot find scope unique name for given base '%s'", name))
 }
 
+// Taken checks if the given unique name has been taken before.
+func (r *GoRenderer[T]) Taken(name string) bool {
+	_, ok := r.uniqs[name]
+	return ok
+}
+
 // Let adds a named constant into the current renderer.
 func (r *GoRenderer[T]) Let(name string, value any) {
 	if strings.TrimSpace(name) == "" {

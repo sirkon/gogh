@@ -131,6 +131,57 @@ func (p *Package[T]) Reuse(name string) (*GoRenderer[T], error) {
 	return r, nil
 }
 
+// Void creates a Go renderer for a file in the current package
+// that will not be saved on the Modules' Render call and won't
+// have any kind of footprint besides occasional go gets.
+func (p *Package[T]) Void() *GoRenderer[T] {
+	res := &GoRenderer[T]{
+		name:    "void.go",
+		pkg:     p,
+		options: nil,
+		vals:    map[string]any{},
+		blocks:  blocks.New(),
+		uniqs:   map[string]struct{}{},
+	}
+
+	imports := &Imports{
+		pkgs: map[string]string{},
+		varcapter: func(name string, value string) string {
+			if v, ok := res.vals[name]; ok {
+				if vv := fmt.Sprint(v); v != value {
+					return vv
+				}
+			}
+
+			res.vals[name] = value
+			res.uniqs[value] = struct{}{}
+
+			return ""
+		},
+		cached: func(pkgpath string) string {
+			return p.mod.pkgcache[pkgpath]
+		},
+		cacher: func(alias, pkgpath string) {
+			p.mod.pkgcache[pkgpath] = alias
+		},
+		inprocess: func(pkgpath string) string {
+			for _, pkg := range p.mod.pkgs {
+				if pkg.Path() == pkgpath {
+					return pkg.name
+				}
+			}
+
+			return ""
+		},
+		namer: func(relpath string) string {
+			return path.Join(p.mod.name, relpath)
+		},
+	}
+	res.imports = p.mod.importer(imports)
+
+	return res
+}
+
 // Raw creates new or reuse existing plain text file renderer.
 func (p *Package[T]) Raw(name string, opts ...RendererOption) *RawRenderer {
 	return p.mod.Raw(path.Join(p.rel, name))

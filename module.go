@@ -265,6 +265,7 @@ func (m *Module[T]) getPackage(name, pkgpath string) (*Package[T], error) {
 		rel:  pkgpath,
 		name: name,
 		rs:   map[string]*GoRenderer[T]{},
+		frs:  map[string]map[*GoRenderer[T]]struct{}{},
 	}
 	m.pkgs[pkgpath] = res
 	return res, nil

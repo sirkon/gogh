@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/chonla/roman-number-go v0.0.0-20181101035413-6768129de021
-	github.com/sirkon/errors v0.2.1
+	github.com/sirkon/errors v0.5.0
 	github.com/sirkon/go-format/v2 v2.0.1
 	github.com/sirkon/jsonexec v0.0.1
 	github.com/sirkon/message v1.5.1

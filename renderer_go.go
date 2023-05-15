@@ -131,7 +131,11 @@ func (r *GoRenderer[T]) Let(name string, value any) {
 }
 
 // Scope returns a new renderer which provides a scope having unique values based on the given one
-func (r *GoRenderer[T]) Scope() *GoRenderer[T] {
+func (r *GoRenderer[T]) Scope() (res *GoRenderer[T]) {
+	defer func() {
+		r.pkg.addRenderer(res)
+	}()
+
 	return &GoRenderer[T]{
 		name:    r.name,
 		pkg:     r.pkg,

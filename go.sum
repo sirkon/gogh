@@ -19,6 +19,8 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/sirkon/errors v0.2.1 h1:cbf0gEEpnSsnw3BoZzKubrBYhLohmyB1LgWB+sGedT0=
 github.com/sirkon/errors v0.2.1/go.mod h1:QHzAIbAhNXYSz3uK9tvp99vPxroQWjNz4PbRg8Ef3Wc=
+github.com/sirkon/errors v0.5.0 h1:Tk/6TEQPAexdUDVLFY8u1Vf9/dyziTla67oWBnBboDU=
+github.com/sirkon/errors v0.5.0/go.mod h1:QHzAIbAhNXYSz3uK9tvp99vPxroQWjNz4PbRg8Ef3Wc=
 github.com/sirkon/go-format v0.1.2 h1:rv/Gp5qXmNrSaqm6ygxXEdDOuMpGYbcW+QScHpGgWxk=
 github.com/sirkon/go-format v0.1.2/go.mod h1:qaECyMww07bEcWjztGZ2vj1LT7mmp0KJRMZRYci9JUw=
 github.com/sirkon/go-format/v2 v2.0.1 h1:sVWYolXTIv7tAVjzH6OOeFolzPPyTSfw0ipbSdk0how=

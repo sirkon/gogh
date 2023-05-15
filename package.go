@@ -19,7 +19,8 @@ type Package[T Importer] struct {
 	rel  string
 	name string
 
-	rs map[string]*GoRenderer[T]
+	rs  map[string]*GoRenderer[T]
+	frs map[string]map[*GoRenderer[T]]struct{}
 }
 
 // Package creates "subpackage" of the current package
@@ -28,12 +29,16 @@ func (p *Package[T]) Package(name, pkgpath string) (*Package[T], error) {
 }
 
 // Go creates new or reuse existing Go source file renderer, options may alter code generation.
-func (p *Package[T]) Go(name string, opts ...RendererOption) *GoRenderer[T] {
+func (p *Package[T]) Go(name string, opts ...RendererOption) (res *GoRenderer[T]) {
+	defer func() {
+		p.addRenderer(res)
+	}()
+
 	if v, ok := p.rs[name]; ok {
 		return v
 	}
 
-	res := &GoRenderer[T]{
+	res = &GoRenderer[T]{
 		name:    name,
 		pkg:     p,
 		options: opts,
@@ -44,15 +49,18 @@ func (p *Package[T]) Go(name string, opts ...RendererOption) *GoRenderer[T] {
 
 	imports := &Imports{
 		pkgs: map[string]string{},
-		varcapter: func(name string, value string) string {
-			if v, ok := res.vals[name]; ok {
-				if vv := fmt.Sprint(v); v != value {
-					return vv
+		varcapter: func(vname string, value string) string {
+			rs := p.frs[name]
+			for r := range rs {
+				if v, ok := r.vals[vname]; ok {
+					if vv := fmt.Sprint(v); v != value {
+						return vv
+					}
 				}
-			}
 
-			res.vals[name] = value
-			res.uniqs[value] = struct{}{}
+				r.vals[vname] = value
+				r.uniqs[vname] = struct{}{}
+			}
 
 			return ""
 		},
@@ -81,9 +89,23 @@ func (p *Package[T]) Go(name string, opts ...RendererOption) *GoRenderer[T] {
 	return res
 }
 
+func (p *Package[T]) addRenderer(res *GoRenderer[T]) {
+	if res == nil {
+		return
+	}
+
+	rs := p.frs[res.name]
+	if rs == nil {
+		rs = map[*GoRenderer[T]]struct{}{}
+	}
+
+	rs[res] = struct{}{}
+	p.frs[res.name] = rs
+}
+
 // Reuse creates a renderer over existing file if it exists.
 // Works as Go without options otherwise.
-func (p *Package[T]) Reuse(name string) (*GoRenderer[T], error) {
+func (p *Package[T]) Reuse(name string) (result *GoRenderer[T], _ error) {
 	fpath := filepath.Join(p.mod.root, p.rel, name)
 	if _, err := os.Stat(fpath); err != nil {
 		if os.IsNotExist(err) {
@@ -147,15 +169,6 @@ func (p *Package[T]) Void() *GoRenderer[T] {
 	imports := &Imports{
 		pkgs: map[string]string{},
 		varcapter: func(name string, value string) string {
-			if v, ok := res.vals[name]; ok {
-				if vv := fmt.Sprint(v); v != value {
-					return vv
-				}
-			}
-
-			res.vals[name] = value
-			res.uniqs[value] = struct{}{}
-
 			return ""
 		},
 		cached: func(pkgpath string) string {

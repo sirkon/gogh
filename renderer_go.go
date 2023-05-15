@@ -228,6 +228,8 @@ func (r *GoRenderer[T]) Type(t types.Type) string {
 			rets = append(rets, fmt.Sprintf("%s %s", v.Name(), r.Type(v.Type())))
 		}
 		return fmt.Sprintf("func (%s) (%s)", strings.Join(args, ", "), strings.Join(rets, ", "))
+	case *types.Array:
+		return fmt.Sprintf("[%d]%s", v.Len(), r.Type(v.Elem()))
 	case *types.Chan:
 		switch v.Dir() {
 		case types.RecvOnly:

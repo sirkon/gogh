@@ -119,6 +119,25 @@ func (r *GoRenderer[T]) Let(name string, value any) {
 		panic(errors.Newf("attempt to change context constant for %s to a different value", name))
 	}
 
+	r.letSet(name, value)
+}
+
+// TryLet same as let but without a panic, it just exits
+// when the variable is already there.
+func (r *GoRenderer[T]) TryLet(name string, value any) {
+	if strings.TrimSpace(name) == "" {
+		panic(errors.New("context name must not be empty or white spaced only"))
+	}
+
+	_, ok := r.vals[name]
+	if ok {
+		return
+	}
+
+	r.letSet(name, value)
+}
+
+func (r *GoRenderer[T]) letSet(name string, value any) {
 	switch vv := value.(type) {
 	case string:
 		value = casesFormatter{value: vv}
@@ -130,7 +149,14 @@ func (r *GoRenderer[T]) Let(name string, value any) {
 	r.vals[name] = value
 }
 
-// Scope returns a new renderer which provides a scope having unique values based on the given one
+// InCtx checks if this name is already in the rendering context.
+func (r *GoRenderer[T]) InCtx(name string) bool {
+	_, ok := r.vals[name]
+	return ok
+}
+
+// Scope returns a new renderer which provides a scope having unique values based on the given one.
+// Alternatively, you can
 func (r *GoRenderer[T]) Scope() (res *GoRenderer[T]) {
 	defer func() {
 		r.pkg.addRenderer(res)
@@ -146,6 +172,11 @@ func (r *GoRenderer[T]) Scope() (res *GoRenderer[T]) {
 		blocks:  r.blocks,
 		uniqs:   maps.Clone(r.uniqs),
 	}
+}
+
+// InnerScope alternative to scope
+func (r *GoRenderer[T]) InnerScope(cls func(r *GoRenderer[T])) {
+	cls(r.Scope())
 }
 
 // Z lazy writing. Return secondary *GoRenderer instance where you can write just like

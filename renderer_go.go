@@ -38,19 +38,44 @@ type GoRenderer[T Importer] struct {
 	reuseFirstImportPos int
 }
 
-// Imports returns imports controller
+// Imports returns imports controller.
+//
+// Usage example:
+//     r.Import().Add("errors").Ref("errs")
+//     r.L(`    return $errs.New("error")`)
+// Will render:
+//     return errors.New("error")
+//
+// Remember, using Ref to put package name into
+// the scope is highly preferable over no Ref or
+// setting package name manually (via the As call):
+// It will take care of conflicting package names,
+// you won't need to resolve dependencies manually.
+//
+// Beware though: do not use the same Ref name for
+// different packages and do not try to Ref with
+// the name you have used with Let before.
 func (r *GoRenderer[T]) Imports() T {
 	return r.imports
 }
 
-// N breaks the line with the LF character
+// N puts the new line character into the buffer.
 func (r *GoRenderer[T]) N() {
 	defer handlePanic()
 	r.imports.Imports().pushImports()
 	r.newline()
 }
 
-// L branch formatted text
+// L renders text line using given [format] and puts it
+// into the buffer.
+//
+// Usage example:
+//     r.Let("dst", "buf")
+//     r.L(`$dst = append($dst, $0)`, 12)
+// Will render:
+//     buf = append(buf, 12)
+//
+// [format]: https://github.com/sirkon/go-format
 func (r *GoRenderer[T]) L(line string, a ...any) {
 	defer handlePanic()
 	r.imports.Imports().pushImports()
@@ -58,7 +83,7 @@ func (r *GoRenderer[T]) L(line string, a ...any) {
 	r.newline()
 }
 
-// R branch raw text
+// R puts raw text without formatting into the buffer.
 func (r *GoRenderer[T]) R(line string) {
 	defer handlePanic()
 	r.imports.Imports().pushImports()
@@ -66,7 +91,7 @@ func (r *GoRenderer[T]) R(line string) {
 	r.newline()
 }
 
-// S same as L but returns string instead of buffer write
+// S same as L but returns string instead of buffer write.
 func (r *GoRenderer[T]) S(line string, a ...any) string {
 	defer handlePanic()
 	r.imports.Imports().pushImports()
@@ -76,8 +101,17 @@ func (r *GoRenderer[T]) S(line string, a ...any) string {
 	return res.String()
 }
 
-// Uniq returns unique value within the scope. In case of a conflict
-// an optional suffix will be used once provided at first.
+// Uniq is used to generate unique names, to avoid variables names
+// clashes in the first place. This is how it works:
+//
+//     r.Uniq("name")        // name
+//     r.Uniq("name")        // name1
+//     r.Uniq("name")        // name2
+//     r.Uniq("name", "alt") // nameAlt
+//     r.Uniq("name", "alt") // name3
+//     r.Uniq("name", "opt") // nameOpt
+//
+// Remember, Uniq's name and Let's key have nothing in common.
 func (r *GoRenderer[T]) Uniq(name string, optSuffix ...string) string {
 	if _, ok := r.uniqs[name]; !ok {
 		r.uniqs[name] = struct{}{}
@@ -109,7 +143,9 @@ func (r *GoRenderer[T]) Taken(name string) bool {
 	return ok
 }
 
-// Let adds a named constant into the current renderer.
+// Let adds a named constant into the scope of the renderer.
+// It will panic if you will try to set a different value
+// for the existing name.
 func (r *GoRenderer[T]) Let(name string, value any) {
 	if strings.TrimSpace(name) == "" {
 		panic(errors.New("context name must not be empty or white spaced only"))
@@ -122,7 +158,33 @@ func (r *GoRenderer[T]) Let(name string, value any) {
 	r.letSet(name, value)
 }
 
-// TryLet same as let but without a panic, it just exits
+// LetReturnZeroValues adds a named constant with the ReturnZeroValues name
+// whose role is to represent zero return values in functions.
+//
+// Usage example:
+//     r.Imports.Add("io").Ref("io")
+//     r.Imports.Add("errors").Ref("errs")
+//     r.F("file")("name", "string").Returns("*$io.ReadCloser", "error", "").Body(func(r *Go) {
+//         r.L(`// Look at trailing comma, it is important ... $ReturnZeroValues`)
+//         r.L(`return $ReturnZeroValues $errs.New("error")`)
+//     })
+// Output:
+//     func file(name string) (io.ReadCloser, error) {
+//         // Look at trailing comma, it is important ... nil,
+//         return nil, errors.New("error"
+//     }
+// Take a look at the doc to know more about how results and parameters can be set up.
+//
+// PS this example may look weird and actually harder to write than a simple formatting,
+//    but it  makes a sense in fact when we work upon the existing source code, with
+//    these types.Type everywhere. You don't even need to set up this constant manually
+//    with them BTW, it will be done for you based on return types provided by the Returns
+//    call itself.
+func (r *GoRenderer[T]) LetReturnZeroValues(values ...string) {
+	r.Let(ReturnZeroValues, A(values...))
+}
+
+// TryLet same as Let but without a panic, it just exits
 // when the variable is already there.
 func (r *GoRenderer[T]) TryLet(name string, value any) {
 	if strings.TrimSpace(name) == "" {
@@ -155,8 +217,9 @@ func (r *GoRenderer[T]) InCtx(name string) bool {
 	return ok
 }
 
-// Scope returns a new renderer which provides a scope having unique values based on the given one.
-// Alternatively, you can
+// Scope returns a new renderer with a scope inherited from the original.
+// Any scope changes made with this renderer will not reflect into the
+// scope of the original renderer.
 func (r *GoRenderer[T]) Scope() (res *GoRenderer[T]) {
 	defer func() {
 		r.pkg.addRenderer(res)
@@ -166,36 +229,50 @@ func (r *GoRenderer[T]) Scope() (res *GoRenderer[T]) {
 		name:    r.name,
 		pkg:     r.pkg,
 		imports: r.imports,
-		options: r.options,
-		cmt:     r.cmt,
 		vals:    maps.Clone(r.vals),
 		blocks:  r.blocks,
 		uniqs:   maps.Clone(r.uniqs),
 	}
 }
 
-// InnerScope alternative to scope
-func (r *GoRenderer[T]) InnerScope(cls func(r *GoRenderer[T])) {
-	cls(r.Scope())
+// InnerScope creates a new scope and feeds it into the given function.
+func (r *GoRenderer[T]) InnerScope(f func(r *GoRenderer[T])) {
+	f(r.Scope())
 }
 
-// Z lazy writing. Return secondary *GoRenderer instance where you can write just like
-// forever yet all records made into it will appear before lines written into THIS GoRenderer
-// after this function call.
-func (r *GoRenderer[T]) Z() *GoRenderer[T] {
+// Z laZy writing. Return another *GoRenderer instance where you can write just like
+// forever yet all records made into it will appear before lines written with the original
+// GoRenderer after this Z call.
+//
+// Code example:
+//     r.R(`// Hello`)
+//     x := r.Z()
+//     r.R(`// World!`)
+//     x.R(`// 你好`)
+// Output:
+//     // Hello
+//     // 你好
+//     // World!
+func (r *GoRenderer[T]) Z() (res *GoRenderer[T]) {
+	defer func() {
+		r.pkg.addRenderer(res)
+	}()
 	r.last()
 
-	res := &GoRenderer[T]{
+	return &GoRenderer[T]{
+		name:    r.name,
 		pkg:     r.pkg,
 		imports: r.imports,
 		vals:    r.vals,
 		blocks:  r.blocks.Next(),
+		uniqs:   r.uniqs,
 	}
-
-	return res
 }
 
-// Type render type name based on go/types representation
+// Type renders fully qualified type name based on go/types representation.
+// You don't need to care about importing a package this type defined in
+// or to use package name to access a type. This method will do this
+// all.
 func (r *GoRenderer[T]) Type(t types.Type) string {
 	switch v := t.(type) {
 	case *types.Named:
@@ -230,7 +307,7 @@ func (r *GoRenderer[T]) Type(t types.Type) string {
 	case *types.Slice:
 		return "[]" + r.Type(v.Elem())
 	case *types.Interface:
-		// Вообще, здесь может быть похитрее, но на практике мало кто использует нечто в духе `interface{ Method() }`
+		// Вообще, здесь может быть похитрее, но на практике мало кто использует нечто в духе `interface{ M() }`
 		// в объявлениях параметров или возвращаемых значений, поэтому пока так. Но возможно придётся этим
 		// заморачиваться
 		return v.String()
@@ -277,7 +354,10 @@ func (r *GoRenderer[T]) Type(t types.Type) string {
 	}
 }
 
-// Proto render Proto name based on github.com/sirkon/protoast/ast representation
+// Proto renders protoc-gen-go generated name based on [protoast] protobuf types representation.
+// Provides the same guarantees as Type, i.e. imports, package qualifiers, etc.
+//
+// [protoast]: https://github.com/sirkon/protoast/tree/master/ast
 func (r *GoRenderer[T]) Proto(t ast.Type) ProtocType {
 	switch v := t.(type) {
 	case *ast.Int32:

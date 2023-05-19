@@ -2,6 +2,17 @@ package gogh
 
 import "strings"
 
+// A shortcut function to create comma separated list out of
+// string list values quickly.
+func A(a ...string) Commas {
+	var res Commas
+	for _, v := range a {
+		res.Add(v)
+	}
+
+	return res
+}
+
 // Params parameters list
 type Params struct {
 	commasSeq

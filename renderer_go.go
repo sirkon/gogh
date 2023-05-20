@@ -22,7 +22,30 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-// GoRenderer GoFile source file code generation
+// GoRenderer GoFile source file code generation.
+//
+// The text data it used for code rendering is kept
+// in a sequence of text blocksmgr, where the renderer
+// instance reference one of them, it is called
+// a current block for the renderer.
+//
+// Renderer also provides means to control import
+// statements.
+//
+// Overall, you can:
+//  - Add new import paths.
+//  - Append a text to the current block of the renderer.
+//  - Insert a new text block after the current one
+//    and make the current block switched to it.
+//    Read Z method docs to learn what it gives.
+//
+// The generated text consists of two major parts:
+//  1. Auto generated header with file comment,
+//     package statement and import statements.
+//  2. A concatenated text from an ordered sequence
+//     of text blocksmgr.
+//
+// With the GoRenderer you can:
 type GoRenderer[T Importer] struct {
 	name    string
 	pkg     *Package[T]
@@ -31,29 +54,64 @@ type GoRenderer[T Importer] struct {
 
 	cmt                 *bytes.Buffer
 	vals                map[string]any
-	blocks              *blocks.Blocks
+	blocksmgr           *blocks.Manager
 	uniqs               map[string]struct{}
 	preImport           map[string]struct{}
 	reuse               bool
 	reuseFirstImportPos int
 }
 
+// GoRendererBuffer switches the given renderer to a new
+// block two times and returns a buffer of the block that
+// was the current after the first switch.
+//
+// See what is happening here:
+//  - B is a current block before the call.
+//  - A is a current block after the first switch.
+//  - C is a current block after the second switch.
+//
+// And
+//
+//       Original blocks:  …, B₋, B, B₊, …
+//       First switch:     …, B₋, B, A, B₊, …
+//       Second switch:    …, B₋, B, A, C, B₊, …
+//
+// We could actually do only one switch and return a black
+// that was the current before the switch, but it can be
+// pretty unsafe, becaue:
+//
+//  - A user can mutate buffer data by an accident.
+//  - Contents of blocks is always concatenated with LF
+//    between them. The usage of the dedicated block
+//    ensures the user is not needed to care about new lines.
+//
+// This double switch makes it sure we are safe from these
+// sorts of issues.
+//
+// This function aimed for an external usage. mimchain output
+// uses this BTW.
+func GoRendererBuffer[T Importer](r *GoRenderer[T]) *bytes.Buffer {
+	res := r.blocksmgr.Insert().Data()
+	r.blocksmgr.Insert()
+	return res
+}
+
 // Imports returns imports controller.
 //
 // Usage example:
-//     r.Import().Add("errors").Ref("errs")
+//     r.Import().Add("errors").Manager("errs")
 //     r.L(`    return $errs.New("error")`)
 // Will render:
 //     return errors.New("error")
 //
-// Remember, using Ref to put package name into
-// the scope is highly preferable over no Ref or
+// Remember, using Manager to put package name into
+// the scope is highly preferable over no Manager or
 // setting package name manually (via the As call):
 // It will take care of conflicting package names,
 // you won't need to resolve dependencies manually.
 //
-// Beware though: do not use the same Ref name for
-// different packages and do not try to Ref with
+// Beware though: do not use the same Manager name for
+// different packages and do not try to Manager with
 // the name you have used with Let before.
 func (r *GoRenderer[T]) Imports() T {
 	return r.imports
@@ -162,8 +220,8 @@ func (r *GoRenderer[T]) Let(name string, value any) {
 // whose role is to represent zero return values in functions.
 //
 // Usage example:
-//     r.Imports.Add("io").Ref("io")
-//     r.Imports.Add("errors").Ref("errs")
+//     r.Imports.Add("io").Manager("io")
+//     r.Imports.Add("errors").Manager("errs")
 //     r.F("file")("name", "string").Returns("*$io.ReadCloser", "error", "").Body(func(r *Go) {
 //         r.L(`// Look at trailing comma, it is important ... $ReturnZeroValues`)
 //         r.L(`return $ReturnZeroValues $errs.New("error")`)
@@ -226,12 +284,12 @@ func (r *GoRenderer[T]) Scope() (res *GoRenderer[T]) {
 	}()
 
 	return &GoRenderer[T]{
-		name:    r.name,
-		pkg:     r.pkg,
-		imports: r.imports,
-		vals:    maps.Clone(r.vals),
-		blocks:  r.blocks,
-		uniqs:   maps.Clone(r.uniqs),
+		name:      r.name,
+		pkg:       r.pkg,
+		imports:   r.imports,
+		vals:      maps.Clone(r.vals),
+		blocksmgr: r.blocksmgr,
+		uniqs:     maps.Clone(r.uniqs),
 	}
 }
 
@@ -240,11 +298,23 @@ func (r *GoRenderer[T]) InnerScope(f func(r *GoRenderer[T])) {
 	f(r.Scope())
 }
 
-// Z laZy writing. Return another *GoRenderer instance where you can write just like
-// forever yet all records made into it will appear before lines written with the original
-// GoRenderer after this Z call.
+// Z provides a renderer instance of "laZy" writing.
 //
-// Code example:
+// What it does:
+//  1. Inserts a new text block and switches the current
+//     renderer to it.
+//  2. Return a new renderer which references a block
+//     which was the current before.
+//
+// So, with this renderer you will write into the previous
+// "current", while the original renderer will write into
+// the next. This means you will have text rendered
+// with the returned GoRenderer instance will appear
+// before the one made with the original renderer after
+// the Z call. Even if writes with the original were made
+// before the writes with the returned.
+//
+// Example:
 //     r.R(`// Hello`)
 //     x := r.Z()
 //     r.R(`// World!`)
@@ -253,20 +323,25 @@ func (r *GoRenderer[T]) InnerScope(f func(r *GoRenderer[T])) {
 //     // Hello
 //     // 你好
 //     // World!
+//
+// See, even though we wrote Chinese("Hello") after the
+// "World!" it appears before it after the rendering.
 func (r *GoRenderer[T]) Z() (res *GoRenderer[T]) {
 	defer func() {
 		r.pkg.addRenderer(res)
 	}()
 	r.last()
 
-	return &GoRenderer[T]{
-		name:    r.name,
-		pkg:     r.pkg,
-		imports: r.imports,
-		vals:    r.vals,
-		blocks:  r.blocks.Next(),
-		uniqs:   r.uniqs,
+	res = &GoRenderer[T]{
+		name:      r.name,
+		pkg:       r.pkg,
+		imports:   r.imports,
+		vals:      r.vals,
+		blocksmgr: r.blocksmgr.Insert().Prev(),
+		uniqs:     r.uniqs,
 	}
+
+	return res
 }
 
 // Type renders fully qualified type name based on go/types representation.
@@ -489,7 +564,7 @@ func (r *GoRenderer[T]) render() error {
 		data.WriteString(")\n\n")
 	}
 
-	for _, block := range r.blocks.Collect() {
+	for _, block := range r.blocksmgr.Collect() {
 		_, _ = io.Copy(data, block)
 	}
 
@@ -544,7 +619,7 @@ func (r *GoRenderer[T]) render() error {
 }
 
 func (r *GoRenderer[T]) last() *bytes.Buffer {
-	return r.blocks.Data()
+	return r.blocksmgr.Data()
 }
 
 func (r *GoRenderer[T]) renderCtx() *format.ContextBuilder {
@@ -615,7 +690,8 @@ func handlePanic() {
 		panic(r)
 	}
 
-	message.Fatalf("%s:%d %s", frame.File, frame.Line, r)
+	message.Errorf("%s:%d %s", frame.File, frame.Line, r)
+	panic(r)
 }
 
 func getOuterFrame() *runtime.Frame {
@@ -661,10 +737,6 @@ func isInternalStuff(path string) bool {
 	}
 
 	if strings.Index(path, goFormatPkg) >= 0 {
-		return true
-	}
-
-	if strings.Index(path, runtimeStuff) >= 0 {
 		return true
 	}
 

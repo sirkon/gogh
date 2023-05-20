@@ -11,34 +11,43 @@ import (
 func TestBlocks(t *testing.T) {
 	type test struct {
 		name   string
-		action func(b *blocks.Blocks)
+		action func(b *blocks.Manager)
 		want   string
 	}
 
 	tests := []test{
 		{
 			name: "trivial",
-			action: func(b *blocks.Blocks) {
+			action: func(b *blocks.Manager) {
 				b.Data().WriteString("abc")
 			},
 			want: "abc",
 		},
 		{
-			name: "grew once",
-			action: func(b *blocks.Blocks) {
-				b.Next().Data().WriteString("def")
-				b.Data().WriteString("abc")
+			name: "single z",
+			action: func(b *blocks.Manager) {
+				b.Data().WriteString("B")
+				b.Insert()
+				c := b.Prev()
+				b.Data().WriteString("Б")
+				c.Data().WriteString("C")
 			},
-			want: "abcdef",
+			want: "BCБ",
 		},
 		{
-			name: "grew twice",
-			action: func(b *blocks.Blocks) {
-				b.Next().Next().Data().WriteString("ghi")
-				b.Data().WriteString("abc")
-				b.Next().Data().WriteString("def")
+			name: "multi z",
+			action: func(b *blocks.Manager) {
+				b.Data().WriteString("B")
+				c := b.Insert().Prev()
+				c.Data().WriteString("C")
+				c.Insert()
+				d := c.Insert().Prev()
+				d.Data().WriteString("D")
+				c.Data().WriteString("Ц")
+				b.Data().WriteString("Б")
+				d.Data().WriteString("Д")
 			},
-			want: "abcdefghi",
+			want: "BCDДЦБ",
 		},
 	}
 	for _, tt := range tests {

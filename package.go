@@ -39,12 +39,12 @@ func (p *Package[T]) Go(name string, opts ...RendererOption) (res *GoRenderer[T]
 	}
 
 	res = &GoRenderer[T]{
-		name:    name,
-		pkg:     p,
-		options: opts,
-		vals:    map[string]any{},
-		blocks:  blocks.New(),
-		uniqs:   map[string]struct{}{},
+		name:      name,
+		pkg:       p,
+		options:   opts,
+		vals:      map[string]any{},
+		blocksmgr: blocks.New(),
+		uniqs:     map[string]struct{}{},
 	}
 
 	imports := &Imports{
@@ -155,15 +155,15 @@ func (p *Package[T]) Reuse(name string) (result *GoRenderer[T], _ error) {
 
 // Void creates a Go renderer for a file in the current package
 // that will not be saved on the Modules' Render call and won't
-// have any kind of footprint besides occasional go gets.
+// have any kind of footprint.
 func (p *Package[T]) Void() *GoRenderer[T] {
 	res := &GoRenderer[T]{
-		name:    "void.go",
-		pkg:     p,
-		options: nil,
-		vals:    map[string]any{},
-		blocks:  blocks.New(),
-		uniqs:   map[string]struct{}{},
+		name:      "void.go",
+		pkg:       p,
+		options:   nil,
+		vals:      map[string]any{},
+		blocksmgr: blocks.New(),
+		uniqs:     map[string]struct{}{},
 	}
 
 	imports := &Imports{

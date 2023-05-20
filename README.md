@@ -235,4 +235,43 @@ r.L(`$fmt.Println($val)`)
   ```go
   func (g *Generator) renderSomething(r *goRenderer) {…}
   ```
+* You can use `M` or `F` methods to copy signatures of existing functions in an easy way.
 
+# About mimchain utility.
+
+## Installation.
+
+```shell
+go install github.com/sirkon/gogh/cmd/mimchain
+```
+
+## What is it?
+
+It is a tool to generate rendering helpers mimicking types with chaining methods. Take a look at my 
+custom [errors](https://github.com/sirkon/errors) package. It is done to deliver structured context with
+errors themselves, for structured loggers mostly in order to follow "log only once" approach:
+
+```go
+return 0, errors.Wrap(err, "count something").Int("stopped-count-at", count).Str("place", "some error place")
+```
+
+where we collect context, including structured context into errors and log them just once at the root level.
+
+SBuilding these with just a renderer can be pretty annoying:
+
+```go
+r.L(`return $ReturnZeroValues $errors.Wrap(err, "count $0").Int("stopped-count-at, $countVar).Str("place", "some error place")`, what)
+```
+
+This utility can generate dedicated code renderers that can be somewhat easier to use with an IDE support:
+
+```go
+ers.R(r, what).Wrap("err", "count $0").Int("stopped-count-at", "$countVar").Str("place", "some error place")
+```
+
+The code it produces is not ready to use though:
+
+  - No constructors like `R`` for generated rendering entities. You need to write what's needed.
+  - `Int("stopped-count-at", "$countVar")` will actually lead to `Int(stopped-count-at, count)`, i.e. 
+    no correct Go code. You will need to manually apply `strconv.Quote` for name arguments. It is not
+    hard though as most cases go, you will see.

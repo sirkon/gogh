@@ -23,7 +23,7 @@ func main() {
 		message.Fatal(errors.Wrap(err, "open current package"))
 	}
 
-	r := p.Go("add.go", gogh.Autogen("reuse"))
+	r := p.Go("add.go", gogh.Autogen("test"))
 
 	r.Imports().Add("fmt")
 	r.L(`func __() {`)
@@ -38,6 +38,8 @@ func main() {
 		r.L(`<-ctx.Done()`)
 		r.L(`return $ReturnZeroValues $errs.New("Hello!")`)
 	})
+	r.N()
+	z := r.Z()
 
 	r.Let("dt", "DataType")
 	r.L("type $dt struct{}")
@@ -48,6 +50,10 @@ func main() {
 		r.N()
 		r.L(`return true, nil`)
 	})
+
+	z.N()
+	z.R(`// just a random comment`)
+	z.N()
 
 	if err := m.Render(); err != nil {
 		message.Fatal(errors.Wrap(err, "render modified file"))

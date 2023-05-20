@@ -14,4 +14,9 @@
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
+go.work
+go.work.sum
+internal/test/add.go
+cmd/mimchain/internal/error.go
+
 .idea

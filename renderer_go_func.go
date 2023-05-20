@@ -11,8 +11,6 @@ import (
 	"github.com/sirkon/protoast/ast"
 )
 
-// High level code rendering helpers are there
-
 // F function definition rendering helper.
 // Here name is just a function name and params can be:
 //  - missing at all
@@ -98,15 +96,19 @@ type (
 )
 
 // Returns sets up a return tuple of the function.
+//
+// We don't divide fmt.Stringer or string here, except stringers from
+// [types] or ast [libraries
+//
 // Arguments are treated almost the same way as for function/method calls, it can be:
 //  - missing at all
 //  - a single instance of Params or *Params
 //  - a single instance of Commas or *Commas
 //  - a single instance of *types.Tuple.
 //  - a list of *types.Var.
-//  - a list of (K₁, V₁, K₂, V₂, ..., Kₙ, Vₙ), where
-//      Kᵢ = (string | fmt.Stringer), except *types.Var, even though it is fmt.Stringer.
-//      Vᵢ = (string | fmt.Stringer | types.Type | ast.Type) except *types.Var.
+//  - a list of (K₁, V₁, K₂, V₂, ..., Kₙ, Vₙ), where *types.Var are not allowed
+//    for Ks anv Vs, Ks must be string or stringers and Vs must be string or
+//    stringers  or *types.Tuple or
 //    and each Kᵢ value or String() can either be .
 //  - a list of (T₁, T₂, …, T₂ₙ₋₁) composed entirely of strings or fmt.Stringers with
 //    the last value being empty string (or .String() method returning an empty string)
@@ -168,7 +170,7 @@ func (r *GoFuncRenderer[T]) Returns(results ...any) *GoFuncBodyRenderer[T] {
 				zeroes = append(zeroValues, zeroValueOfTypesType(r.r, p.Type(), i == v.Len()-1))
 			}
 		case string, fmt.Stringer:
-			r.params, _ = r.inPlaceSeq("argument", results...)
+			r.results, _ = r.inPlaceSeq("argument", results...)
 		default:
 			panic(fmt.Errorf("unsupported result literal type %T", results[0]))
 		}
@@ -616,7 +618,7 @@ func (c *tupleNamesChecker) reg(name string) {
 }
 
 var (
-	identMatcher = regexp.MustCompile(`^\s*[_a-zA-Z][_a-zA-Z]*\s*$`)
+	identMatcher = regexp.MustCompile(`^\s*[_a-zA-Z][_a-zA-Z0-9]*\s*$`)
 )
 
 func textValue(val any) *string {

@@ -1,2 +1,2 @@
-// Package blocks provides an ordered sequence of buffers
+// Package block provides an ordered sequence of buffers
 package blocks

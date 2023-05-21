@@ -191,7 +191,7 @@ func (r *GoFuncRenderer[T]) Returns(results ...any) *GoFuncBodyRenderer[T] {
 		}
 	}
 	if zeroesAreValid && len(zeroes) == len(r.results) {
-		r.r.LetReturnZeroValues(zeroes...)
+		r.r.SetReturnZeroValues(zeroes...)
 	}
 
 	return &GoFuncBodyRenderer[T]{

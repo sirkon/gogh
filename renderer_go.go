@@ -216,7 +216,7 @@ func (r *GoRenderer[T]) Let(name string, value any) {
 	r.letSet(name, value)
 }
 
-// LetReturnZeroValues adds a named constant with the ReturnZeroValues name
+// SetReturnZeroValues adds a named constant with the ReturnZeroValues name
 // whose role is to represent zero return values in functions.
 //
 // Usage example:
@@ -233,13 +233,15 @@ func (r *GoRenderer[T]) Let(name string, value any) {
 //     }
 // Take a look at the doc to know more about how results and parameters can be set up.
 //
-// PS this example may look weird and actually harder to write than a simple formatting,
-//    but it  makes a sense in fact when we work upon the existing source code, with
-//    these types.Type everywhere. You don't even need to set up this constant manually
-//    with them BTW, it will be done for you based on return types provided by the Returns
-//    call itself.
-func (r *GoRenderer[T]) LetReturnZeroValues(values ...string) {
-	r.Let(ReturnZeroValues, A(values...))
+// This example may look weird and actually harder to write than a simple formatting,
+// but it  makes a sense in fact when we work upon the existing source code, with
+// these types.Type everywhere. You don't even need to set up this constant manually
+// with them BTW, it will be done for you based on return types provided by the Returns
+// call itself.
+//
+// This value can be overriden BTW.
+func (r *GoRenderer[T]) SetReturnZeroValues(values ...string) {
+	r.letSet(ReturnZeroValues, A(values...))
 }
 
 // TryLet same as Let but without a panic, it just exits

@@ -44,58 +44,8 @@ func (g *generator) generateMethodsGroup(r *goRenderer, gr []*types.Func) {
 	r.Let("r", r.S("$x.b.r"))
 	r.Let("posargs", r.S("$x.b.a"))
 	params, args := baseArgs(r, gr)
-	r.M("$x", "*$gattr")(supp)(params).Returns("*$gattr").Body(func(r *goRenderer) {
-		r.L(`$dst.WriteByte('.')`)
-		r.L(`$dst.WriteString($methodName)`)
-		r.L(`$dst.WriteByte('(')`)
-
-		for i, arg := range args {
-			if variadic && i == len(args)-1 {
-				break
-			}
-
-			r.N()
-			r.L(`// render argument '$0' usage`, arg)
-			if i > 0 {
-				r.L(`$dst.WriteString(", ")`)
-			}
-			r.L(`switch v := $0.(type) {`, arg)
-			r.L(`case string:`)
-			r.L(`    $dst.WriteString($r.S(v, $posargs...))`)
-			r.L(`default:`)
-			r.L(`    $dst.WriteString($fmt.Sprint($0))`, arg)
-			r.L(`}`)
-		}
-
-		if variadic {
-			arg := args[len(args)-1]
-			r.Let("iter", r.Uniq("val"))
-			if len(args) != 1 {
-				r.Let("i", "_")
-			} else {
-				r.Let("i", r.Uniq("i"))
-			}
-
-			r.N()
-			r.L(`// render variadic arguments '$0' usage"`, arg)
-			r.L(`for $i, $iter := range $0 {`, arg)
-			if len(args) > 1 {
-				r.L(`$dst.WriteString(", ")`)
-			} else {
-				r.L(`if $i > 0 {`)
-				r.L(`    $dst.WriteString(", ")`)
-				r.L(`}`)
-			}
-
-			r.L(`    switch v := $iter.(type) {`)
-			r.L(`    case string:`)
-			r.L(`        $dst.WriteString($r.S(v, $posargs...))`)
-			r.L(`    default:`)
-			r.L(`        $dst.WriteString($fmt.Sprint($0))`, arg)
-			r.L(`    }`)
-
-			r.L(`}`)
-		}
+	r.M("$x", "*$gattr[T]")(supp)(params).Returns("*$gattr[T]").Body(func(r *goRenderer) {
+		g.renderCallGen(r, args, variadic, areAlwaysStrings(gr))
 
 		r.N()
 		r.L(`$dst.WriteByte(')')`)
@@ -108,7 +58,7 @@ func (g *generator) generateMethod(r *goRenderer, m *types.Func, sig *types.Sign
 
 	r.N()
 	r.L(`// $0 call support.`, m.Name())
-	r.M("$x", "*$gattr")(m.Name())(params...).Returns("*$gattr").Body(func(r *goRenderer) {
+	r.M("$x", "*$gattr[T]")(m.Name())(params...).Returns("*$gattr[T]").Body(func(r *goRenderer) {
 		r.L(`return $x.$baseMethod("$0", $1)`, m.Name(), paramsUsage(r, params, sig.Variadic()))
 	})
 }

@@ -20,6 +20,8 @@ type generator struct {
 	v   *goRenderer
 	r   *goRenderer
 	b   *goRenderer
+
+	quoteStrings bool
 }
 
 func (g *generator) generate(typ *types.Named, constrs []*types.Func, methods []*types.Func) {
@@ -37,47 +39,100 @@ func (g *generator) generate(typ *types.Named, constrs []*types.Func, methods []
 
 func (g *generator) generateType(r *goRenderer) {
 	r = r.Scope()
+	r.Imports().Add("github.com/sirkon/gogh").Ref("gogh")
 
 	r.Imports().Add("bytes").Ref("bytes")
 	r.L(`// $gtype is a dedicated code renderer for chaining calls of $orig.`)
 	r.L(`// The type provides constructor calls for the original type.`)
-	r.L(`type $gtype struct{`)
-	r.L(`    r *xxxGoRenderer // change this to the real *gogh.GoRenderer[T] you will use`)
+	r.L(`type $gtype[T $gogh.Importer] struct{`)
+	r.L(`    r *$gogh.GoRenderer[T]`)
 	r.L(`    buf *$bytes.Buffer`)
 	r.L(`    a []any`)
 	r.L(`}`)
 	r.N()
 	r.L(`// $gattr is a dedicated code renderer for chaining calls of $orig.`)
 	r.L(`// The type provides chaining calls of the original type.`)
-	r.L(`type $gattr struct{`)
-	r.L(`    b *$gtype`)
+	r.L(`type $gattr[T $gogh.Importer] struct{`)
+	r.L(`    b *$gtype[T]`)
 	r.L(`}`)
 	r.N()
-	r.L(`func ($x *$gtype) String() string{`)
+	r.L(`func ($x *$gtype[T]) String() string{`)
 	r.L(`    return $x.buf.String()`)
 	r.L(`}`)
 	r.N()
-	r.L(`func ($x *$gattr) String() string{`)
+	r.L(`func ($x *$gattr[T]) String() string{`)
 	r.L(`    return $x.b.buf.String()`)
 	r.L(`}`)
 }
 
-func (g *generator) typeRcvr(r *goRenderer) gogh.Params {
-	var params gogh.Params
-	params.Add(r.S("$x"), r.S("$gtype"))
+// renderCallGen renders a code of a method that renders a code of method call LMAO.
+func (g *generator) renderCallGen(r *goRenderer, args []string, variadic bool, argsAlwaysStrings []bool) {
+	r.L(`$dst.WriteByte('.')`)
+	r.L(`$dst.WriteString($methodName)`)
+	r.L(`$dst.WriteByte('(')`)
 
-	return params
-}
+	for i, arg := range args {
+		if variadic && i == len(args)-1 {
+			break
+		}
 
-func (g *generator) attrRcvr(r *goRenderer) gogh.Params {
-	var params gogh.Params
-	params.Add(r.S("$x"), r.S("$gattr"))
+		r.N()
+		r.L(`// render argument '$0' usage`, arg)
+		if i > 0 {
+			r.L(`$dst.WriteString(", ")`)
+		}
+		r.L(`switch v := $0.(type) {`, arg)
+		r.L(`case string:`)
 
-	return params
-}
+		if argsAlwaysStrings[i] && g.quoteStrings {
+			r.Imports().Add("strconv").Ref("strconv")
+			r.L(`v = $strconv.Quote(v)`, arg)
+		}
 
-func (g *generator) otype() string {
-	return g.v.Type(g.typ)
+		r.L(`    $dst.WriteString($r.S(v, $posargs...))`)
+		r.L(`case $fmt.Stringer:`)
+		r.L(`    $dst.WriteString($r.S(v.String(), $posargs...))`)
+		r.L(`default:`)
+		r.L(`    $dst.WriteString($fmt.Sprint($0))`, arg)
+		r.L(`}`)
+	}
+
+	if variadic {
+		arg := args[len(args)-1]
+		r.Let("iter", r.Uniq("val"))
+		if len(args) != 1 {
+			r.Let("i", "_")
+		} else {
+			r.Let("i", r.Uniq("i"))
+		}
+
+		r.N()
+		r.L(`// render variadic arguments '$0' usage"`, arg)
+		r.L(`for $i, $iter := range $0 {`, arg)
+		if len(args) > 1 {
+			r.L(`$dst.WriteString(", ")`)
+		} else {
+			r.L(`if $i > 0 {`)
+			r.L(`    $dst.WriteString(", ")`)
+			r.L(`}`)
+		}
+
+		r.L(`    switch v := $iter.(type) {`)
+		r.L(`    case string:`)
+		if len(args) == 1 && argsAlwaysStrings[0] && g.quoteStrings {
+			r.Imports().Add("strconv").Ref("strconv")
+			r.L(`    v = strconv.Quote(v)`)
+		}
+		r.L(`        $dst.WriteString($r.S(v, $posargs...))`)
+		r.L(`    case $fmt.Stringer:`)
+		r.L(`        $dst.WriteString($r.S(v.String(), $posargs...))`)
+		r.L(`    default:`)
+		r.L(`        $dst.WriteString($fmt.Sprint($0))`, arg)
+		r.L(`    }`)
+
+		r.L(`}`)
+	}
+
 }
 
 // baseArgNames computes arg names for a base function of
@@ -195,4 +250,41 @@ func weight(m *types.Func) int {
 
 func isVariadic(f *types.Func) bool {
 	return f.Type().(*types.Signature).Variadic()
+}
+
+func areAlwaysStrings(gr []*types.Func) []bool {
+	if len(gr) == 0 {
+		return nil
+	}
+
+	sig := gr[0].Type().(*types.Signature)
+	if sig.Params().Len() == 0 {
+		return nil
+	}
+
+	res := make([]bool, sig.Params().Len())
+	for i := range res {
+		res[i] = true
+	}
+
+	for _, f := range gr {
+		for i := 0; i < len(res); i++ {
+			s := f.Type().(*types.Signature)
+
+			if !isString(s.Params().At(i).Type()) {
+				res[i] = false
+			}
+		}
+	}
+
+	return res
+}
+
+func isString(typ types.Type) bool {
+	v, ok := typ.(*types.Basic)
+	if !ok {
+		return false
+	}
+
+	return v.Kind() == types.String
 }

@@ -12,6 +12,11 @@ import (
 )
 
 func main() {
+	argParams := os.Args[1:]
+	if len(argParams) > 0 && argParams[0] == "--" {
+		argParams = argParams[1:]
+	}
+
 	var args arguments
 	cliParser := kong.Must(
 		&args,
@@ -20,7 +25,7 @@ func main() {
 		kong.UsageOnError(),
 	)
 
-	if _, err := cliParser.Parse(os.Args[1:]); err != nil {
+	if _, err := cliParser.Parse(argParams); err != nil {
 		message.Warning(errors.Wrap(err, "parse command line arguments"))
 		cliParser.FatalIfErrorf(err)
 	}
@@ -62,15 +67,16 @@ func main() {
 		message.Fatal(errors.Wrap(err, "set up rendering package").Str("pkg-path", args.Dst.Path))
 	}
 
-	fileName := gogh.Underscored(args.Dst.ID) + ".go"
+	fileName := gogh.Underscored(args.Dst.ID) + "_generated.go"
 	r := p.Go(fileName, gogh.Shy)
 
 	g := &generator{
-		src: args.Type,
-		dst: args.Dst,
-		typ: typ,
-		v:   p.Void(),
-		r:   r,
+		src:          args.Type,
+		dst:          args.Dst,
+		typ:          typ,
+		v:            p.Void(),
+		r:            r,
+		quoteStrings: args.StringArgsQuoted,
 	}
 	g.generate(typ, constrs, methods)
 

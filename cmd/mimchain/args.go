@@ -13,9 +13,12 @@ import (
 type arguments struct {
 	Version kong.VersionFlag `help:"Print version and exit." short:"v"`
 
-	Type        sourcePoint `arg:"" help:"Type with chaining methods. Referenced as <pkgpath>:<typename>."`
-	Dst         sourcePoint `arg:"" help:"Codegen wrapper type to generate. Referenced as <pkgpath>:<typename>"`
-	PackageName string      `help:"Package name for the wrapper type. Will be ignored if the package exists already." short:"p"`
+	StringArgsQuoted bool `help:"Quote string values for parameters having string type in an original method/function." default:"false" short:"q"`
+
+	Type sourcePoint `arg:"" help:"Type with chaining methods. Referenced as <pkgpath>:<typename>."`
+	Dst  sourcePoint `arg:"" help:"Codegen wrapper type to generate. Referenced as <pkgpath>:<typename>"`
+
+	PackageName string `help:"Package name for the wrapper type. Will be ignored if the package exists already." short:"p"`
 }
 
 // sourcePoint represents a command line argument that looks like

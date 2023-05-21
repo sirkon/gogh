@@ -3,13 +3,13 @@
 Go source code rendering library. The name `gogh` comes from both `GO Generator` and from the fact I adore Van Gogh
 writings.
 
-## Installation
+# Installation
 
 ```shell script
 go get github.com/sirkon/gogh
 ```
 
-## Simple usage
+# Simple usage
 
 ```go
 package main
@@ -50,7 +50,7 @@ func main() {
 }
 ```
 
-## Importers
+# Importers
 
 It would be great to have shortcuts for frequently imported packages besides generic
 
@@ -120,7 +120,7 @@ r.L(`    Service *$configs.Service`)
 r.L(`}`)
 ```
 
-## How to use text renderer.
+# How to use text renderer.
 
 | Method                 | Description                                                                                                                              |
 |------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
@@ -140,7 +140,7 @@ r.L(`}`)
 | `Scope()`              | Produce a new renderer with its local context.<br/>`Uniq` and `*Let` calls will not touch the original renderer.<br/> See details below. |
 | `InnerScope(func)`     | Produce a new scope and feed it to the given function.                                                                                   |
 
-### Lazy generation.
+## Lazy generation.
 
 Imagine you have a list of `[{ name, typeName }]` and want to generate:
 
@@ -172,7 +172,7 @@ for _, item := range typesTypeNamesList {
 }
 ```
 
-### Scope.
+## Scope.
 
 Every renderer has a scope which can be used to generate unique values and keep rendering context values.
 Different renderers can share the same scope though: `r.Z()` call produces a new renderer but its scope is
@@ -190,7 +190,7 @@ identical to one `r` has.
   This is a reasonable decision as package imports are global for a given Go file and all renderers produced
   with `Z` or `Scope` belong to the same file.
   
-### Unique scope values.
+## Unique scope values.
 
 Let we have to ensure unique values. For, to say, function arguments. `Uniq` method is to help us here.
 How it works:
@@ -205,7 +205,7 @@ It tries:
 3. If both base name and even a hinted base name are busy it looks for the first unique `<base>N` for N = 1, 2, 3, …
    which have not been taken yet.
 
-### Scope rendering context.
+## Scope rendering context.
 
 Using positional values for formatting can be annoying. You can push some constant values into the so-called
 scope rendering context. Example:
@@ -217,7 +217,7 @@ r.L(`$fmt.Println($val)`)
 
 `Let` panics if you tries to define a new value for the variable you have added already.
 
-## Advices.
+# Advices.
 
 * Use `Ref` to assign rendering context value is the preferable way to access imported packages:
   `*gogh.GoRenderer` will take care of conflicting names, aliases, etc. Just make sure reference name is unique for the
@@ -249,15 +249,15 @@ go install github.com/sirkon/gogh/cmd/mimchain
 
 It is a tool to generate rendering helpers mimicking types with chaining methods. Take a look at my 
 custom [errors](https://github.com/sirkon/errors) package. It is done to deliver structured context with
-errors themselves, for structured loggers mostly in order to follow "log only once" approach:
+errors, for structured loggers mostly in order to follow "log only once" approach:
 
 ```go
-return 0, errors.Wrap(err, "count something").Int("stopped-count-at", count).Str("place", "some error place")
+return 0, errors.Wrap(err, "count something").Int("stopped-count-at", count).Str("place", "placeName")
 ```
 
 where we collect context, including structured context into errors and log them just once at the root level.
 
-SBuilding these with just a renderer can be pretty annoying:
+Building these with just a renderer can be pretty annoying:
 
 ```go
 r.L(`return $ReturnZeroValues $errors.Wrap(err, "count $0").Int("stopped-count-at, $countVar).Str("place", "some error place")`, what)
@@ -266,12 +266,25 @@ r.L(`return $ReturnZeroValues $errors.Wrap(err, "count $0").Int("stopped-count-a
 This utility can generate dedicated code renderers that can be somewhat easier to use with an IDE support:
 
 ```go
-ers.R(r, what).Wrap("err", "count $0").Int("stopped-count-at", "$countVar").Str("place", "some error place")
+ers.R(r, what).Wrap("err", "count $0").Int("stopped-count-at", "$countVar").Str("place", placeName)
 ```
 
 The code it produces is not ready to use though:
 
-  - No constructors like `R`` for generated rendering entities. You need to write what's needed.
-  - `Int("stopped-count-at", "$countVar")` will actually lead to `Int(stopped-count-at, count)`, i.e. 
-    no correct Go code. You will need to manually apply `strconv.Quote` for name arguments. It is not
-    hard though as most cases go, you will see.
+  - No constructors like `R` for generated rendering entities. You need to write what's needed.
+  - Another issue is with string arguments. See at the code sample above: some methods like `Bool`, `Str`, `Uint64`, 
+    etc, will be called with a direct string literal as their first argument mostly and the second argument is very 
+    likely to be a variable. 
+
+The first part is trivial, you see. The second is harder. There's an option currently which enables force quotes
+for constructors and type methods renderers. A code generated will quote an argument if it always has string type
+for functions having the same amount of parameters.
+
+And remember: it is not a crime to tweak generated code manually, the lack of "DO NOT EDIT" header there
+is not a coincidence.
+
+## Example.
+
+It is [testexample](https://github.com/sirkon/gogh/tree/master/cmd/mimchain/internal/testexample). 
+
+

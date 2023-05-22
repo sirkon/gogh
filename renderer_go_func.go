@@ -166,7 +166,7 @@ func (r *GoFuncRenderer[T]) Returns(results ...any) *GoFuncBodyRenderer[T] {
 			for i := 0; i < v.Len(); i++ {
 				p := v.At(i)
 				r.takeVarName("argument", p.Name())
-				r.results = append(r.params, [2]string{p.Name(), r.r.Type(p.Type())})
+				r.results = append(r.results, [2]string{p.Name(), r.r.Type(p.Type())})
 				zeroes = append(zeroValues, zeroValueOfTypesType(r.r, p.Type(), i == v.Len()-1))
 			}
 		case string, fmt.Stringer:

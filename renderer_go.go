@@ -431,6 +431,48 @@ func (r *GoRenderer[T]) Type(t types.Type) string {
 	}
 }
 
+// PkgObject renders fully qualified object name used with the referenced package.
+// The reference can be done with one of:
+//  - *types.Named.
+//  - types.Object.
+//  - *GoRenderer[T].
+//  - string containing package path.
+func (r *GoRenderer[T]) PkgObject(pkgRef any, name string) string {
+	var pkg string
+	switch v := pkgRef.(type) {
+	case types.Object:
+		pkg = v.Pkg().Path()
+	case *types.Named:
+		pkg = v.Obj().Pkg().Path()
+	case *GoRenderer[T]:
+		pkg = v.pkg.Path()
+	case string:
+		pkg = v
+	default:
+		panic(errors.Newf("type %T cannot reference a package", pkgRef))
+	}
+
+	if pkg != r.pkg.Path() {
+		r = r.Scope()
+		r.Imports().Add(pkg).Ref("packageReference")
+		return r.S("$packageReference.$0", name)
+	}
+
+	return name
+}
+
+// Object renders fully qualified object name.
+func (r *GoRenderer[T]) Object(item types.Object) string {
+	pkg := item.Pkg().Path()
+	if pkg != r.pkg.Path() {
+		r = r.Scope()
+		r.Imports().Add(pkg).Ref("packageReference")
+		return r.S("$packageReference.$0", item.Name())
+	}
+
+	return item.Name()
+}
+
 // Proto renders protoc-gen-go generated name based on [protoast] protobuf types representation.
 // Provides the same guarantees as Type, i.e. imports, package qualifiers, etc.
 //

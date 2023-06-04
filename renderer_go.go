@@ -124,6 +124,36 @@ func (r *GoRenderer[T]) N() {
 	r.newline()
 }
 
+// C concatenates given objects into a single text line using
+// space character as a separator.
+func (r *GoRenderer[T]) C(a ...any) {
+	b := r.last()
+	for i, p := range a {
+		if i > 0 {
+			b.WriteByte(' ')
+		}
+		switch v := p.(type) {
+		case string:
+			b.WriteString(v)
+		case fmt.Stringer:
+			b.WriteString(v.String())
+		case *Commas:
+			b.WriteString(v.String())
+		case *Params:
+			b.WriteString(v.String())
+		case types.Type:
+			b.WriteString(r.Type(v))
+		case types.Object:
+			b.WriteString(r.Object(v))
+		case ast.Type:
+			b.WriteString(r.Proto(v).String())
+		default:
+			b.WriteString(fmt.Sprint(p))
+		}
+	}
+	r.newline()
+}
+
 // L renders text line using given [format] and puts it
 // into the buffer.
 //
@@ -346,10 +376,22 @@ func (r *GoRenderer[T]) Z() (res *GoRenderer[T]) {
 	return res
 }
 
+// T produces a temporary renderer which renders for the same package
+// but will not save its content anywhere. It is meant to deal with
+// side effects caused by Type, PkgObject, Object, Proto and alike –
+// – they do imports for the file generated with this renderer.
+func (r *GoRenderer[T]) T() *GoRenderer[T] {
+	return r.pkg.Void()
+}
+
 // Type renders fully qualified type name based on go/types representation.
 // You don't need to care about importing a package this type defined in
 // or to use package name to access a type. This method will do this
 // all.
+//
+// Beware though, the produced code may be incorrect if your type names
+// are only used in strings or comments. You will have an import statement
+// for them, but won't use them at the same time.
 func (r *GoRenderer[T]) Type(t types.Type) string {
 	switch v := t.(type) {
 	case *types.Named:

@@ -125,10 +125,12 @@ r.L(`}`)
 | Method                 | Description                                                                                                                              |
 |------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
 | `L(format, params...)` | Render and put text line using custom format. <br/>See [go-format](github.com/sirkon/go-format) for details.                             |
+| `C(params...)`         | Render a text concatenation of given parameters.                                                                                         |
 | `R(text)`              | Put raw text                                                                                                                             |
 | `N()`                  | Put new line                                                                                                                             |
 | `S(format, params...)` | Same as `L` but returns rendered text as a string without saving it.                                                                     |
-| `Z()`                  | Returns new renderer which will put lines before<br/>any line made by the original renderer.<br/> Set details below.                     |
+| `Z()`                  | Returns a new renderer which will put lines before<br/>any line made by the original renderer.<br/> Set details below.                   |
+| `T()`                  | Returns a new "temporary" renderer which belong to<br/>the same package but will not produce<br/>any new file.                           |
 | `F(…)`                 | Renders definition of a function. The primary goal is to simplify building functions<br/>definitions based on existing signatures.       |
 | `M(…)`                 | Similar to `F` but for methods this time.                                                                                                |
 | `Type(t)`              | Renders fully qualified type name  of `types.Type` instance.<br/>Will take care of package qualifier names and imports.                  |
@@ -286,5 +288,8 @@ is not a coincidence.
 ## Example.
 
 It is [testexample](https://github.com/sirkon/gogh/tree/master/cmd/mimchain/internal/testexample). 
+
+# What's next.
+
 
 

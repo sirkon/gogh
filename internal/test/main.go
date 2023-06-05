@@ -33,6 +33,7 @@ func main() {
 	r.Imports().Add("context").Ref("ctx")
 	r.Imports().Add("errors").Ref("errs")
 
+	// r.SetReturnZeroValues(`""`, "")
 	r.F("_")("ctx $ctx.Context").Returns("string", "error", "").Body(func(r *gogh.GoRenderer[*gogh.Imports]) {
 		r.Imports().Add("strconv").Ref("conv")
 		r.L(`<-ctx.Done()`)

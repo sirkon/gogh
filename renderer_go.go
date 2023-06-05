@@ -167,7 +167,7 @@ func (r *GoRenderer[T]) C(a ...any) {
 func (r *GoRenderer[T]) L(line string, a ...any) {
 	defer handlePanic()
 	r.imports.Imports().pushImports()
-	renderLine(r.last(), line, r.renderCtx(), a...)
+	r.renderLine(r.last(), line, a...)
 	r.newline()
 }
 
@@ -184,7 +184,7 @@ func (r *GoRenderer[T]) S(line string, a ...any) string {
 	defer handlePanic()
 	r.imports.Imports().pushImports()
 	var res bytes.Buffer
-	renderLine(&res, line, r.renderCtx(), a...)
+	r.renderLine(&res, line, a...)
 
 	return res.String()
 }
@@ -243,7 +243,7 @@ func (r *GoRenderer[T]) Let(name string, value any) {
 		panic(errors.Newf("attempt to change context constant for %s to a different value", name))
 	}
 
-	r.letSet(name, value)
+	r.letSet(name, r.ctxValue(value))
 }
 
 // SetReturnZeroValues adds a named constant with the ReturnZeroValues name

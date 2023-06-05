@@ -12,14 +12,14 @@ import "github.com/sirkon/gogh"
 //
 // Remember though, you need to have $ReturnZeroValues in the
 // renderer context. It can be set by [M] or [F] method calls
-// or directly using [LetReturnZeroValues] method.
+// or directly using [SetReturnZeroValues] method.
 // The availability of this context constant is not guaranteed
 // for both [M] and [F] in a case the heuristics failed,
 // so be careful with it.
 //
 // [M]: https://pkg.go.dev/github.com/sirkon/gogh#GoRenderer.M
 // [F]: https://pkg.go.dev/github.com/sirkon/gogh#GoRenderer.M
-// [SetReturnZeroValues]: https://pkg.go.dev/github.com/sirkon/gogh#GoRenderer.LetReturnZeroValues
+// [SetReturnZeroValues]: https://pkg.go.dev/github.com/sirkon/gogh#GoRenderer.SetReturnZeroValues
 func R[T gogh.Importer](r *gogh.GoRenderer[T], a ...any) *Error[T] {
 	r = r.Scope()
 	buffer := gogh.GoRendererBuffer(r)

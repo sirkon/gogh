@@ -17,3 +17,13 @@ type L string
 func (l L) String() string {
 	return string(l)
 }
+
+// QuoteBias returns just v if it is not a string.
+// Returns Q(v) otherwise.
+func QuoteBias(v any) any {
+	if vv, ok := v.(string); ok {
+		return Q(vv)
+	}
+
+	return v
+}

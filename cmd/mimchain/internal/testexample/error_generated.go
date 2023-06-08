@@ -30,6 +30,27 @@ func (x *ErrorAttr[T]) String() string {
 	return x.b.buf.String()
 }
 
+// Just call support.
+func (x *Error[T]) Just(err any) *ErrorAttr[T] {
+	r := x.r.Scope()
+	r.Imports().Add("github.com/sirkon/errors").Ref("iy_XIVFZjnaQkfEXOVKVdvOMrPUEXsuq")
+	return x.constructor1("${iy_XIVFZjnaQkfEXOVKVdvOMrPUEXsuq}.Just", err)
+}
+
+// New call support.
+func (x *Error[T]) New(msg any) *ErrorAttr[T] {
+	r := x.r.Scope()
+	r.Imports().Add("github.com/sirkon/errors").Ref("iy_XIVFZjnaQkfEXOVKVdvOMrPUEXsuq")
+	return x.constructor1("${iy_XIVFZjnaQkfEXOVKVdvOMrPUEXsuq}.New", gogh.QuoteBias(msg))
+}
+
+// Newf call support.
+func (x *Error[T]) Newf(format any, a ...any) *ErrorAttr[T] {
+	r := x.r.Scope()
+	r.Imports().Add("github.com/sirkon/errors").Ref("iy_XIVFZjnaQkfEXOVKVdvOMrPUEXsuq")
+	return x.constructor2variadic("${iy_XIVFZjnaQkfEXOVKVdvOMrPUEXsuq}.Newf", format, a...)
+}
+
 // Wrap call support.
 func (x *Error[T]) Wrap(err any, msg any) *ErrorAttr[T] {
 	r := x.r.Scope()
@@ -42,27 +63,6 @@ func (x *Error[T]) Wrapf(err any, format any, a ...any) *ErrorAttr[T] {
 	r := x.r.Scope()
 	r.Imports().Add("github.com/sirkon/errors").Ref("iy_XIVFZjnaQkfEXOVKVdvOMrPUEXsuq")
 	return x.constructor3variadic("${iy_XIVFZjnaQkfEXOVKVdvOMrPUEXsuq}.Wrapf", err, format, a...)
-}
-
-// Just call support.
-func (x *Error[T]) Just(err any) *ErrorAttr[T] {
-	r := x.r.Scope()
-	r.Imports().Add("github.com/sirkon/errors").Ref("iy_XIVFZjnaQkfEXOVKVdvOMrPUEXsuq")
-	return x.constructor1("${iy_XIVFZjnaQkfEXOVKVdvOMrPUEXsuq}.Just", err)
-}
-
-// New call support.
-func (x *Error[T]) New(msg any) *ErrorAttr[T] {
-	r := x.r.Scope()
-	r.Imports().Add("github.com/sirkon/errors").Ref("iy_XIVFZjnaQkfEXOVKVdvOMrPUEXsuq")
-	return x.constructor1("${iy_XIVFZjnaQkfEXOVKVdvOMrPUEXsuq}.New", msg)
-}
-
-// Newf call support.
-func (x *Error[T]) Newf(format any, a ...any) *ErrorAttr[T] {
-	r := x.r.Scope()
-	r.Imports().Add("github.com/sirkon/errors").Ref("iy_XIVFZjnaQkfEXOVKVdvOMrPUEXsuq")
-	return x.constructor2variadic("${iy_XIVFZjnaQkfEXOVKVdvOMrPUEXsuq}.Newf", format, a...)
 }
 
 // Pfx call support.
@@ -165,9 +165,62 @@ func (x *ErrorAttr[T]) Any(name any, value any) *ErrorAttr[T] {
 	return x.method2("Any", name, value)
 }
 
+func (x *Error[T]) constructor1(funcName string, arg1 any) *ErrorAttr[T] {
+	x.buf.WriteString(x.r.S(funcName, x.a...))
+	x.buf.WriteByte('(')
+
+	// render argument 'arg1' usage
+	switch v := arg1.(type) {
+	case string:
+		x.buf.WriteString(x.r.S(v, x.a...))
+	case fmt.Stringer:
+		x.buf.WriteString(x.r.S(v.String(), x.a...))
+	default:
+		x.buf.WriteString(fmt.Sprint(arg1))
+	}
+
+	x.buf.WriteByte(')')
+	return &ErrorAttr[T]{
+		b: x,
+	}
+}
+
+func (x *Error[T]) constructor2variadic(funcName string, format any, a ...any) *ErrorAttr[T] {
+	x.buf.WriteString(x.r.S(funcName, x.a...))
+	x.buf.WriteByte('(')
+
+	// render argument 'format' usage
+	switch v := format.(type) {
+	case string:
+		v = strconv.Quote(v)
+		x.buf.WriteString(x.r.S(v, x.a...))
+	case fmt.Stringer:
+		x.buf.WriteString(x.r.S(v.String(), x.a...))
+	default:
+		x.buf.WriteString(fmt.Sprint(format))
+	}
+
+	// render variadic arguments 'a' usage"
+	for _, val := range a {
+		x.buf.WriteString(", ")
+		switch v := val.(type) {
+		case string:
+			x.buf.WriteString(x.r.S(v, x.a...))
+		case fmt.Stringer:
+			x.buf.WriteString(x.r.S(v.String(), x.a...))
+		default:
+			x.buf.WriteString(fmt.Sprint(v))
+		}
+	}
+
+	x.buf.WriteByte(')')
+	return &ErrorAttr[T]{
+		b: x,
+	}
+}
+
 func (x *Error[T]) constructor2(funcName string, err any, msg any) *ErrorAttr[T] {
-	x.buf.WriteByte('.')
-	x.buf.WriteString(funcName)
+	x.buf.WriteString(x.r.S(funcName, x.a...))
 	x.buf.WriteByte('(')
 
 	// render argument 'err' usage
@@ -199,8 +252,7 @@ func (x *Error[T]) constructor2(funcName string, err any, msg any) *ErrorAttr[T]
 }
 
 func (x *Error[T]) constructor3variadic(funcName string, err any, format any, a ...any) *ErrorAttr[T] {
-	x.buf.WriteByte('.')
-	x.buf.WriteString(funcName)
+	x.buf.WriteString(x.r.S(funcName, x.a...))
 	x.buf.WriteByte('(')
 
 	// render argument 'err' usage
@@ -234,63 +286,7 @@ func (x *Error[T]) constructor3variadic(funcName string, err any, format any, a 
 		case fmt.Stringer:
 			x.buf.WriteString(x.r.S(v.String(), x.a...))
 		default:
-			x.buf.WriteString(fmt.Sprint(a))
-		}
-	}
-
-	x.buf.WriteByte(')')
-	return &ErrorAttr[T]{
-		b: x,
-	}
-}
-
-func (x *Error[T]) constructor1(funcName string, arg1 any) *ErrorAttr[T] {
-	x.buf.WriteByte('.')
-	x.buf.WriteString(funcName)
-	x.buf.WriteByte('(')
-
-	// render argument 'arg1' usage
-	switch v := arg1.(type) {
-	case string:
-		x.buf.WriteString(x.r.S(v, x.a...))
-	case fmt.Stringer:
-		x.buf.WriteString(x.r.S(v.String(), x.a...))
-	default:
-		x.buf.WriteString(fmt.Sprint(arg1))
-	}
-
-	x.buf.WriteByte(')')
-	return &ErrorAttr[T]{
-		b: x,
-	}
-}
-
-func (x *Error[T]) constructor2variadic(funcName string, format any, a ...any) *ErrorAttr[T] {
-	x.buf.WriteByte('.')
-	x.buf.WriteString(funcName)
-	x.buf.WriteByte('(')
-
-	// render argument 'format' usage
-	switch v := format.(type) {
-	case string:
-		v = strconv.Quote(v)
-		x.buf.WriteString(x.r.S(v, x.a...))
-	case fmt.Stringer:
-		x.buf.WriteString(x.r.S(v.String(), x.a...))
-	default:
-		x.buf.WriteString(fmt.Sprint(format))
-	}
-
-	// render variadic arguments 'a' usage"
-	for _, val := range a {
-		x.buf.WriteString(", ")
-		switch v := val.(type) {
-		case string:
-			x.buf.WriteString(x.r.S(v, x.a...))
-		case fmt.Stringer:
-			x.buf.WriteString(x.r.S(v.String(), x.a...))
-		default:
-			x.buf.WriteString(fmt.Sprint(a))
+			x.buf.WriteString(fmt.Sprint(v))
 		}
 	}
 
@@ -302,7 +298,7 @@ func (x *Error[T]) constructor2variadic(funcName string, format any, a ...any) *
 
 func (x *ErrorAttr[T]) method1(methodName string, arg1 any) *ErrorAttr[T] {
 	x.b.buf.WriteByte('.')
-	x.b.buf.WriteString(methodName)
+	x.b.buf.WriteString(x.b.r.S(methodName, x.b.a...))
 	x.b.buf.WriteByte('(')
 
 	// render argument 'arg1' usage
@@ -321,7 +317,7 @@ func (x *ErrorAttr[T]) method1(methodName string, arg1 any) *ErrorAttr[T] {
 
 func (x *ErrorAttr[T]) method2(methodName string, name any, arg2 any) *ErrorAttr[T] {
 	x.b.buf.WriteByte('.')
-	x.b.buf.WriteString(methodName)
+	x.b.buf.WriteString(x.b.r.S(methodName, x.b.a...))
 	x.b.buf.WriteByte('(')
 
 	// render argument 'name' usage

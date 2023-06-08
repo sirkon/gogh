@@ -66,9 +66,17 @@ func (g *generator) generateType(r *goRenderer) {
 }
 
 // renderCallGen renders a code of a method that renders a code of method call LMAO.
-func (g *generator) renderCallGen(r *goRenderer, args []string, variadic bool, argsAlwaysStrings []bool) {
-	r.L(`$dst.WriteByte('.')`)
-	r.L(`$dst.WriteString($methodName)`)
+func (g *generator) renderCallGen(
+	r *goRenderer,
+	args []string,
+	variadic bool,
+	argsAlwaysStrings []bool,
+	needDot bool,
+) {
+	if needDot {
+		r.L(`$dst.WriteByte('.')`)
+	}
+	r.L(`$dst.WriteString($r.S($methodName, $posargs...))`)
 	r.L(`$dst.WriteByte('(')`)
 
 	for i, arg := range args {
@@ -127,7 +135,7 @@ func (g *generator) renderCallGen(r *goRenderer, args []string, variadic bool, a
 		r.L(`    case $fmt.Stringer:`)
 		r.L(`        $dst.WriteString($r.S(v.String(), $posargs...))`)
 		r.L(`    default:`)
-		r.L(`        $dst.WriteString($fmt.Sprint($0))`, arg)
+		r.L(`        $dst.WriteString($fmt.Sprint(v))`, arg)
 		r.L(`    }`)
 
 		r.L(`}`)

@@ -45,7 +45,7 @@ func (g *generator) generateMethodsGroup(r *goRenderer, gr []*types.Func) {
 	r.Let("posargs", r.S("$x.b.a"))
 	params, args := baseArgs(r, gr)
 	r.M("$x", "*$gattr[T]")(supp)(params).Returns("*$gattr[T]").Body(func(r *goRenderer) {
-		g.renderCallGen(r, args, variadic, areAlwaysStrings(gr))
+		g.renderCallGen(r, args, variadic, areAlwaysStrings(gr), true)
 
 		r.N()
 		r.L(`$dst.WriteByte(')')`)

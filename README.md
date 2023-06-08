@@ -124,7 +124,7 @@ r.L(`}`)
 
 | Method                 | Description                                                                                                                              |
 |------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| `L(format, params...)` | Render and put text line using custom format. <br/>See [go-format](github.com/sirkon/go-format) for details.                             |
+| `L(format, params...)` | Render and put text line using custom format. <br/>See [further](#formatting) for details.                                               |
 | `C(params...)`         | Render a text concatenation of given parameters.                                                                                         |
 | `R(text)`              | Put raw text                                                                                                                             |
 | `N()`                  | Put new line                                                                                                                             |
@@ -141,6 +141,26 @@ r.L(`}`)
 | `TryLet(name, value)`  | Same as let but won't panic if the name was taken before.                                                                                |
 | `Scope()`              | Produce a new renderer with its local context.<br/>`Uniq` and `*Let` calls will not touch the original renderer.<br/> See details below. |
 | `InnerScope(func)`     | Produce a new scope and feed it to the given function.                                                                                   |
+
+## Formatting.
+
+The formatting is built upon the [go-format](https://github.com/sirkon/go-format) library, but there is some extra
+functionality.
+
+- `types.Type` and `ast.Type` are supported out of the box and converted into strings automatically.
+- `(*)Commas` and `(*)Params` are also supported with their custom format option `\n`, which will render
+  their multiline representation.
+
+And then `string` (and `fmt.Stringer`) arguments have these dedicated formatting options:
+
+| format option | details                                      |
+|---------------|----------------------------------------------|
+| `P`           | Applies `gogh.Public` function to the value. |
+| `p`           | Applies `gogh.Private` function.             |
+| `R`           | Applies `gogh.Proto` function.               |
+| `_`           | Applies `gogh.Underscored` function.         |
+| `-`           | Applies `gogh.Striked` function.             |
+
 
 ## Lazy generation.
 
@@ -278,18 +298,25 @@ The code it produces is not ready to use though:
     etc, will be called with a direct string literal as their first argument mostly and the second argument is very 
     likely to be a variable. 
 
-The first part is trivial, you see. The second is harder. There's an option currently which enables force quotes
-for constructors and type methods renderers. A code generated will quote an argument if it always has string type
-for functions having the same amount of parameters.
+The first part is trivial, you can write it yourself with all tweaks you want. 
+The second is harder. There's an option currently which enables force quotes for constructors and type 
+methods renderers. A code generated will quote an argument if it always has string type for functions having the 
+same amount of parameters.
 
 And remember: it is not a crime to tweak generated code manually, the lack of "DO NOT EDIT" header there
 is not a coincidence.
 
+This library provides `Q`, `L` and `QuoteBias` helpers to deal with string quotes:
+
+- `Q` is useful when string values are meant to have literal rendering – it will turn them into quoted strings.
+- `L` is a vice versa – it is useful when string values are meant to have quoted rendering.
+- `QuoteBias` function turns strings values into quoted strings.
+
+These are meant to be used for relatively easy tweaking of a source code generated.
+
 ## Example.
 
 It is [testexample](https://github.com/sirkon/gogh/tree/master/cmd/mimchain/internal/testexample). 
-
-# What's next.
 
 
 

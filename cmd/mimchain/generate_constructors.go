@@ -40,7 +40,7 @@ func (g *generator) generateConstructorsGroup(r *goRenderer, gr []*types.Func) {
 	params, args := baseArgs(r, gr)
 
 	r.M("$x", "*$gtype[T]")(supp)(params).Returns("*$gattr[T]").Body(func(r *goRenderer) {
-		g.renderCallGen(r, args, variadic, areAlwaysStrings(gr))
+		g.renderCallGen(r, args, variadic, areAlwaysStrings(gr), false)
 
 		r.N()
 		r.L(`$dst.WriteByte(')')`)

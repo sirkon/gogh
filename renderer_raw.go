@@ -63,6 +63,11 @@ func (r *RawRenderer) Z() *RawRenderer {
 	return res
 }
 
+// Put puts raw bytes directly.
+func (r *RawRenderer) Put(data []byte) {
+	r.blocks = append(r.blocks, bytes.NewBuffer(data))
+}
+
 func (r *RawRenderer) path() string {
 	return r.fullname
 }

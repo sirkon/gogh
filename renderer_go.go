@@ -33,11 +33,11 @@ import (
 // statements.
 //
 // Overall, you can:
-//  - Add new import paths.
-//  - Append a text to the current block of the renderer.
-//  - Insert a new text block after the current one
-//    and make the current block switched to it.
-//    Read Z method docs to learn what it gives.
+//   - Add new import paths.
+//   - Append a text to the current block of the renderer.
+//   - Insert a new text block after the current one
+//     and make the current block switched to it.
+//     Read Z method docs to learn what it gives.
 //
 // The generated text consists of two major parts:
 //  1. Auto generated header with file comment,
@@ -53,7 +53,7 @@ type GoRenderer[T Importer] struct {
 	options []RendererOption
 
 	cmt                 *bytes.Buffer
-	vals                map[string]any
+	vals                ValScope
 	blocksmgr           *blocks.Manager
 	uniqs               map[string]struct{}
 	preImport           map[string]struct{}
@@ -61,29 +61,32 @@ type GoRenderer[T Importer] struct {
 	reuseFirstImportPos int
 }
 
+// ValScope a type alias for variables.
+type ValScope = map[string]any
+
 // GoRendererBuffer switches the given renderer to a new
 // block two times and returns a buffer of the block that
 // was the current after the first switch.
 //
 // See what is happening here:
-//  - B is a current block before the call.
-//  - A is a current block after the first switch.
-//  - C is a current block after the second switch.
+//   - B is a current block before the call.
+//   - A is a current block after the first switch.
+//   - C is a current block after the second switch.
 //
 // And
 //
-//       Original blocks:  …, B₋, B, B₊, …
-//       First switch:     …, B₋, B, A, B₊, …
-//       Second switch:    …, B₋, B, A, C, B₊, …
+//	Original blocks:  …, B₋, B, B₊, …
+//	First switch:     …, B₋, B, A, B₊, …
+//	Second switch:    …, B₋, B, A, C, B₊, …
 //
 // We could actually do only one switch and return a black
 // that was the current before the switch, but it can be
 // pretty unsafe, becaue:
 //
-//  - A user can mutate buffer data by an accident.
-//  - Contents of blocks is always concatenated with LF
-//    between them. The usage of the dedicated block
-//    ensures the user is not needed to care about new lines.
+//   - A user can mutate buffer data by an accident.
+//   - Contents of blocks is always concatenated with LF
+//     between them. The usage of the dedicated block
+//     ensures the user is not needed to care about new lines.
 //
 // This double switch makes it sure we are safe from these
 // sorts of issues.
@@ -99,10 +102,13 @@ func GoRendererBuffer[T Importer](r *GoRenderer[T]) *bytes.Buffer {
 // Imports returns imports controller.
 //
 // Usage example:
-//     r.Import().Add("errors").Manager("errs")
-//     r.L(`    return $errs.New("error")`)
+//
+//	r.Import().Add("errors").Manager("errs")
+//	r.L(`    return $errs.New("error")`)
+//
 // Will render:
-//     return errors.New("error")
+//
+//	return errors.New("error")
 //
 // Remember, using Manager to put package name into
 // the scope is highly preferable over no Manager or
@@ -158,10 +164,13 @@ func (r *GoRenderer[T]) C(a ...any) {
 // into the buffer.
 //
 // Usage example:
-//     r.Let("dst", "buf")
-//     r.L(`$dst = append($dst, $0)`, 12)
+//
+//	r.Let("dst", "buf")
+//	r.L(`$dst = append($dst, $0)`, 12)
+//
 // Will render:
-//     buf = append(buf, 12)
+//
+//	buf = append(buf, 12)
 //
 // [format]: https://github.com/sirkon/go-format
 func (r *GoRenderer[T]) L(line string, a ...any) {
@@ -192,12 +201,12 @@ func (r *GoRenderer[T]) S(line string, a ...any) string {
 // Uniq is used to generate unique names, to avoid variables names
 // clashes in the first place. This is how it works:
 //
-//     r.Uniq("name")        // name
-//     r.Uniq("name")        // name1
-//     r.Uniq("name")        // name2
-//     r.Uniq("name", "alt") // nameAlt
-//     r.Uniq("name", "alt") // name3
-//     r.Uniq("name", "opt") // nameOpt
+//	r.Uniq("name")        // name
+//	r.Uniq("name")        // name1
+//	r.Uniq("name")        // name2
+//	r.Uniq("name", "alt") // nameAlt
+//	r.Uniq("name", "alt") // name3
+//	r.Uniq("name", "opt") // nameOpt
 //
 // Remember, Uniq's name and Let's key have nothing in common.
 func (r *GoRenderer[T]) Uniq(name string, optSuffix ...string) string {
@@ -250,17 +259,21 @@ func (r *GoRenderer[T]) Let(name string, value any) {
 // whose role is to represent zero return values in functions.
 //
 // Usage example:
-//     r.Imports.Add("io").Manager("io")
-//     r.Imports.Add("errors").Manager("errs")
-//     r.F("file")("name", "string").Returns("*$io.ReadCloser", "error", "").Body(func(r *Go) {
-//         r.L(`// Look at trailing comma, it is important ... $ReturnZeroValues`)
-//         r.L(`return $ReturnZeroValues $errs.New("error")`)
-//     })
+//
+//	r.Imports.Add("io").Manager("io")
+//	r.Imports.Add("errors").Manager("errs")
+//	r.F("file")("name", "string").Returns("*$io.ReadCloser", "error", "").Body(func(r *Go) {
+//	    r.L(`// Look at trailing comma, it is important ... $ReturnZeroValues`)
+//	    r.L(`return $ReturnZeroValues $errs.New("error")`)
+//	})
+//
 // Output:
-//     func file(name string) (io.ReadCloser, error) {
-//         // Look at trailing comma, it is important ... nil,
-//         return nil, errors.New("error"
-//     }
+//
+//	func file(name string) (io.ReadCloser, error) {
+//	    // Look at trailing comma, it is important ... nil,
+//	    return nil, errors.New("error"
+//	}
+//
 // Take a look at the doc to know more about how results and parameters can be set up.
 //
 // This example may look weird and actually harder to write than a simple formatting,
@@ -325,6 +338,27 @@ func (r *GoRenderer[T]) Scope() (res *GoRenderer[T]) {
 	}
 }
 
+// ScopeWith same as Scope with new values. You can also override existing values here.
+func (r *GoRenderer[T]) ScopeWith(override ValScope) (res *GoRenderer[T]) {
+	defer func() {
+		r.pkg.addRenderer(res)
+	}()
+
+	vals := maps.Clone(r.vals)
+	for k, v := range override {
+		vals[k] = v
+	}
+
+	return &GoRenderer[T]{
+		name:      r.name,
+		pkg:       r.pkg,
+		imports:   r.imports,
+		vals:      vals,
+		blocksmgr: r.blocksmgr,
+		uniqs:     maps.Clone(r.uniqs),
+	}
+}
+
 // InnerScope creates a new scope and feeds it into the given function.
 func (r *GoRenderer[T]) InnerScope(f func(r *GoRenderer[T])) {
 	f(r.Scope())
@@ -347,14 +381,17 @@ func (r *GoRenderer[T]) InnerScope(f func(r *GoRenderer[T])) {
 // before the writes with the returned.
 //
 // Example:
-//     r.R(`// Hello`)
-//     x := r.Z()
-//     r.R(`// World!`)
-//     x.R(`// 你好`)
+//
+//	r.R(`// Hello`)
+//	x := r.Z()
+//	r.R(`// World!`)
+//	x.R(`// 你好`)
+//
 // Output:
-//     // Hello
-//     // 你好
-//     // World!
+//
+//	// Hello
+//	// 你好
+//	// World!
 //
 // See, even though we wrote Chinese("Hello") after the
 // "World!" it appears before it after the rendering.
@@ -475,10 +512,10 @@ func (r *GoRenderer[T]) Type(t types.Type) string {
 
 // PkgObject renders fully qualified object name used with the referenced package.
 // The reference can be done with one of:
-//  - *types.Named.
-//  - types.Object.
-//  - *GoRenderer[T].
-//  - string containing package path.
+//   - *types.Named.
+//   - types.Object.
+//   - *GoRenderer[T].
+//   - string containing package path.
 func (r *GoRenderer[T]) PkgObject(pkgRef any, name string) string {
 	var pkg string
 	switch v := pkgRef.(type) {

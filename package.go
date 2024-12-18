@@ -42,7 +42,7 @@ func (p *Package[T]) Go(name string, opts ...RendererOption) (res *GoRenderer[T]
 		name:      name,
 		pkg:       p,
 		options:   opts,
-		vals:      map[string]any{},
+		vals:      newEmptyValScope(),
 		blocksmgr: blocks.New(),
 		uniqs:     map[string]struct{}{},
 	}
@@ -52,13 +52,13 @@ func (p *Package[T]) Go(name string, opts ...RendererOption) (res *GoRenderer[T]
 		varcapter: func(vname string, value string) string {
 			rs := p.frs[name]
 			for r := range rs {
-				if v, ok := r.vals[vname]; ok {
+				if v, ok := r.vals.Get(vname); ok {
 					if vv := fmt.Sprint(v); v != value {
 						return vv
 					}
 				}
 
-				r.vals[vname] = value
+				r.vals.Set(vname, value)
 				r.uniqs[vname] = struct{}{}
 			}
 
@@ -161,7 +161,7 @@ func (p *Package[T]) Void() *GoRenderer[T] {
 		name:      "void.go",
 		pkg:       p,
 		options:   nil,
-		vals:      map[string]any{},
+		vals:      newEmptyValScope(),
 		blocksmgr: blocks.New(),
 		uniqs:     map[string]struct{}{},
 	}

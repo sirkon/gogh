@@ -53,16 +53,13 @@ type GoRenderer[T Importer] struct {
 	options []RendererOption
 
 	cmt                 *bytes.Buffer
-	vals                ValScope
+	vals                *valScope
 	blocksmgr           *blocks.Manager
 	uniqs               map[string]struct{}
 	preImport           map[string]struct{}
 	reuse               bool
 	reuseFirstImportPos int
 }
-
-// ValScope a type alias for variables.
-type ValScope = map[string]any
 
 // GoRendererBuffer switches the given renderer to a new
 // block two times and returns a buffer of the block that
@@ -242,13 +239,13 @@ func (r *GoRenderer[T]) Taken(name string) bool {
 
 // Let adds a named constant into the scope of the renderer.
 // It will panic if you will try to set a different value
-// for the existing name.
+// for the name that exists in the current scope.
 func (r *GoRenderer[T]) Let(name string, value any) {
 	if strings.TrimSpace(name) == "" {
 		panic(errors.New("context name must not be empty or white spaced only"))
 	}
 
-	if prev, ok := r.vals[name]; ok && prev != value {
+	if r.vals.CheckScope(name) {
 		panic(errors.Newf("attempt to change context constant for %s to a different value", name))
 	}
 
@@ -294,8 +291,7 @@ func (r *GoRenderer[T]) TryLet(name string, value any) {
 		panic(errors.New("context name must not be empty or white spaced only"))
 	}
 
-	_, ok := r.vals[name]
-	if ok {
+	if r.vals.CheckScope(name) {
 		return
 	}
 
@@ -311,12 +307,12 @@ func (r *GoRenderer[T]) letSet(name string, value any) {
 	default:
 	}
 
-	r.vals[name] = value
+	r.vals.Set(name, value)
 }
 
 // InCtx checks if this name is already in the rendering context.
 func (r *GoRenderer[T]) InCtx(name string) bool {
-	_, ok := r.vals[name]
+	_, ok := r.vals.Get(name)
 	return ok
 }
 
@@ -332,28 +328,7 @@ func (r *GoRenderer[T]) Scope() (res *GoRenderer[T]) {
 		name:      r.name,
 		pkg:       r.pkg,
 		imports:   r.imports,
-		vals:      maps.Clone(r.vals),
-		blocksmgr: r.blocksmgr,
-		uniqs:     maps.Clone(r.uniqs),
-	}
-}
-
-// ScopeWith same as Scope with new values. You can also override existing values here.
-func (r *GoRenderer[T]) ScopeWith(override ValScope) (res *GoRenderer[T]) {
-	defer func() {
-		r.pkg.addRenderer(res)
-	}()
-
-	vals := maps.Clone(r.vals)
-	for k, v := range override {
-		vals[k] = v
-	}
-
-	return &GoRenderer[T]{
-		name:      r.name,
-		pkg:       r.pkg,
-		imports:   r.imports,
-		vals:      vals,
+		vals:      r.vals.Next(),
 		blocksmgr: r.blocksmgr,
 		uniqs:     maps.Clone(r.uniqs),
 	}
@@ -747,7 +722,7 @@ func (r *GoRenderer[T]) last() *bytes.Buffer {
 
 func (r *GoRenderer[T]) renderCtx() *format.ContextBuilder {
 	res := format.NewContextBuilder()
-	for name, value := range r.vals {
+	for name, value := range r.vals.Map() {
 		res.Add(name, value)
 	}
 
@@ -763,8 +738,8 @@ func (r *GoRenderer[T]) comment() *bytes.Buffer {
 }
 
 func (r *GoRenderer[T]) setVals(vals map[string]any) {
-	for name, value := range vals {
-		if v, ok := r.vals[name]; ok && v != value {
+	for name := range vals {
+		if r.vals.CheckScope(name) {
 			panic(errors.Newf("attempt to '%s' into different value", name))
 		}
 	}

@@ -657,9 +657,8 @@ func (r *GoRenderer[T]) render() error {
 				data.WriteString(`"`)
 				data.WriteByte('\n')
 			}
+			data.WriteString(")\n\n")
 		}
-
-		data.WriteString(")\n\n")
 	}
 
 	for _, block := range r.blocksmgr.Collect() {

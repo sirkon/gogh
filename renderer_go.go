@@ -16,10 +16,11 @@ import (
 
 	"github.com/sirkon/errors"
 	"github.com/sirkon/go-format/v2"
-	"github.com/sirkon/gogh/internal/blocks"
 	"github.com/sirkon/message"
 	"github.com/sirkon/protoast/ast"
 	"golang.org/x/exp/maps"
+
+	"github.com/sirkon/gogh/internal/blocks"
 )
 
 // GoRenderer GoFile source file code generation.
@@ -447,6 +448,33 @@ func (r *GoRenderer[T]) Type(t types.Type) string {
 		return v.String()
 	case *types.Basic:
 		return v.String()
+	case *types.Alias:
+		typ := v.Obj()
+		pkg := typ.Pkg()
+		if pkg == nil || pkg.Path() == r.pkg.Path() {
+			return typ.Name()
+		}
+		alias := r.imports.Add(pkg.Path()).push()
+
+		var res strings.Builder
+		res.WriteString(alias)
+		res.WriteByte('.')
+		res.WriteString(typ.Name())
+		if v.TypeParams().Len() != 0 {
+			res.WriteByte('[')
+			for i := 0; i < v.TypeParams().Len(); i++ {
+				if i > 0 {
+					res.WriteString(", ")
+				}
+
+				res.WriteString(v.TypeParams().At(i).Obj().Name())
+				res.WriteByte(' ')
+				res.WriteString(r.Type(v.TypeParams().At(i).Obj().Type()))
+			}
+			res.WriteByte(']')
+		}
+
+		return res.String()
 	case *types.Map:
 		return fmt.Sprintf("map[%s]%s", r.Type(v.Key()), r.Type(v.Elem()))
 	case *types.Signature:

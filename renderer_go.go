@@ -17,7 +17,8 @@ import (
 	"github.com/sirkon/errors"
 	"github.com/sirkon/go-format/v2"
 	"github.com/sirkon/message"
-	"github.com/sirkon/protoast/ast"
+	"github.com/sirkon/protoast/v2"
+	"github.com/sirkon/protoast/v2/past"
 	"golang.org/x/exp/maps"
 
 	"github.com/sirkon/gogh/internal/blocks"
@@ -149,7 +150,7 @@ func (r *GoRenderer[T]) C(a ...any) {
 			b.WriteString(r.Type(v))
 		case types.Object:
 			b.WriteString(r.Object(v))
-		case ast.Type:
+		case past.Type:
 			b.WriteString(r.Proto(v).String())
 		default:
 			b.WriteString(fmt.Sprint(p))
@@ -559,87 +560,95 @@ func (r *GoRenderer[T]) Object(item types.Object) string {
 // Provides the same guarantees as Type, i.e. imports, package qualifiers, etc.
 //
 // [protoast]: https://github.com/sirkon/protoast/tree/master/ast
-func (r *GoRenderer[T]) Proto(t ast.Type) ProtocType {
+func (r *GoRenderer[T]) Proto(t past.Type) ProtocType {
 	switch v := t.(type) {
-	case *ast.Int32:
+	case *past.Int32, *past.Sint32, *past.Sfixed32:
 		return raw("int32")
-	case *ast.Int64:
+	case *past.Int64, *past.Sint64, *past.Sfixed64:
 		return raw("int64")
-	case *ast.Uint32:
+	case *past.Uint32, *past.Fixed32:
 		return raw("uint32")
-	case *ast.Uint64:
+	case *past.Uint64, *past.Fixed64:
 		return raw("uint64")
-	case *ast.Float32:
+	case *past.Float:
 		return raw("float32")
-	case *ast.Float64:
+	case *past.Double:
 		return raw("float64")
-	case *ast.Bool:
+	case *past.Bool:
 		return raw("bool")
-	case *ast.Bytes:
+	case *past.Bytes:
 		return raw("[]byte")
-	case *ast.String:
+	case *past.String:
 		return raw("string")
-	case *ast.Enum:
-		if v.ParentMsg == nil {
+	case *past.Enum:
+		parent := r.protoRegistry().NodeParent(v)
+		switch p := parent.(type) {
+		case *past.Message:
+			res := r.Proto(p)
+			res.pointer = false
+			res.selector += "_" + Proto(v.Name())
+			return res
+		case *past.File:
 			var alias string
 			if !r.isInSamePackage(v) {
-				alias = r.imports.Add(v.File.GoPath).push()
+				alias = r.Imports().Add(r.protocTypePkgPath(v)).push()
 			}
 			return ProtocType{
 				source:   alias,
-				selector: Proto(v.Name),
+				selector: Proto(v.Name()),
 			}
+		default:
+			panic(errors.Newf(
+				"past not with a tie to %T when %T or %T are the only valid options",
+				p, new(past.Message), new(past.File),
+			))
 		}
-		res := r.Proto(v.ParentMsg)
-		res.pointer = false
-		res.selector += "_" + Proto(v.Name)
-		return res
-	case *ast.Repeated:
+	case *past.Repeated:
 		return raw("[]" + r.Proto(v.Type).Impl())
-	case *ast.Map:
-		return raw("map[" + r.Proto(v.KeyType).Impl() + "]" + r.Proto(v.ValueType).Impl())
-	case *ast.Message:
+	case *past.Map:
+		return raw("map[" + r.Proto(v.Key()).Impl() + "]" + r.Proto(v.Value(r.protoRegistry())).Impl())
+	case *past.Message:
+		file := r.protoRegistry().NodeFile(v)
+		if file == nil {
+			panic("no file for message " + v.Name())
+		}
 		// если это гугловые врапперы, то для них своя процедура
-		if v.File.Name == "google/protobuf/wrappers.proto" {
+		if file.Name() == "google/protobuf/wrappers.proto" {
 			// ура, ето врапперы!
 			r.imports.Add("google.golang.org/protobuf/Protos/known/wrapperspb").Ref("wrappers")
-			switch v.Name {
+			switch v.Name() {
 			case "DoubleValue", "FloatValue", "Int64Value", "UInt64Value",
 				"Int32Value", "UInt32Value", "BoolValue", "StringValue", "BytesValue":
 			default:
-				panic(errors.Newf("unsupported google wrapper %s.%s", v.File.Package, v.Name))
+				panic(errors.Newf("unsupported google wrapper %s.%s", file.Name(), v.Name()))
 			}
 			return ProtocType{
 				pointer:  true,
 				source:   r.S("$wrappers"),
-				selector: Proto(v.Name),
+				selector: Proto(v.Name()),
 			}
 		}
-
-		if v.ParentMsg == nil {
+		parent := r.protoRegistry().NodeParent(v)
+		switch p := parent.(type) {
+		case *past.File:
 			var alias string
 			if !r.isInSamePackage(v) {
-				alias = r.imports.Add(v.File.GoPath).push()
+				alias = r.imports.Add(r.protocTypePkgPath(p)).push()
 			}
 			return ProtocType{
 				pointer:  true,
 				source:   alias,
-				selector: Proto(v.Name),
+				selector: Proto(v.Name()),
 			}
-		}
-		res := r.Proto(v.ParentMsg)
-		res.selector += "_" + Proto(v.Name)
-		return res
-	case *ast.Any:
-		r.imports.Add("google.golang.org/protobuf/Protos/known/anypb").Ref("anypkg")
-		return ProtocType{
-			pointer:  true,
-			source:   r.S("$anypkg"),
-			selector: "Any",
+		default:
+			res := r.Proto(p.(past.Type))
+			res.selector += "_" + Proto(v.Name())
 		}
 	default:
 		panic(errors.Newf("Proto %T is not supported", v))
 	}
+
+	panic("unreachable")
 }
 
 // path returns generated file path
@@ -776,31 +785,34 @@ func (r *GoRenderer[T]) newline() {
 	r.last().WriteByte('\n')
 }
 
+func (r *GoRenderer[T]) protoRegistry() *protoast.Registry {
+	return r.pkg.mod.registry
+}
+
 // isInSamePackage определяет, относится ли генерируемый файл к тому же пакету, что и данный тип сгенерированный protoc-gen-go
-func (r *GoRenderer[T]) isInSamePackage(t ast.Unique) bool {
+func (r *GoRenderer[T]) isInSamePackage(t past.Node) bool {
 	reference := r.protocTypePkgPath(t)
 	return reference == r.pkg.Path()
 }
 
-func (r *GoRenderer[T]) protocTypePkgPath(t ast.Unique) string {
-	switch v := t.(type) {
-	case *ast.File:
-		return v.GoPath
-	case *ast.Service:
-		return v.File.GoPath
-	case *ast.Method:
-		return v.File.GoPath
-	case *ast.Message:
-		return v.File.GoPath
-	case *ast.Enum:
-		return v.File.GoPath
-	case *ast.OneOf:
-		return v.ParentMsg.File.GoPath
-	case *ast.OneOfBranch:
-		return v.ParentOO.ParentMsg.File.GoPath
-	default:
-		return ""
+// TODO probably a cache would make it a bit better.
+func (r *GoRenderer[T]) protocTypePkgPath(t past.Node) string {
+	registry := r.protoRegistry()
+	for node := range registry.NodeHierarchy(t) {
+		f, ok := node.(*past.File)
+		if !ok {
+			continue
+		}
+
+		option := registry.OptionNamed(f, "go_package")
+		pkg := registry.GoPackageOption(option)
+		if pkg == nil {
+			panic("missing go_package option")
+		}
+		return pkg.Path
 	}
+
+	panic("orphan node without a file in its hierarchy ties")
 }
 
 func handlePanic() {

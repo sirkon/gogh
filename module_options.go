@@ -1,6 +1,9 @@
 package gogh
 
-import "github.com/blang/semver/v4"
+import (
+	"github.com/blang/semver/v4"
+	"github.com/sirkon/protoast/v2"
+)
 
 // ModuleOption module option
 type ModuleOption[T Importer] func(_ hiddenType, m *Module[T])
@@ -19,5 +22,12 @@ func WithFixedDeps[T Importer](deps map[string]semver.Version) ModuleOption[T] {
 		for modpath, version := range deps {
 			m.fixedDeps[modpath] = version
 		}
+	}
+}
+
+// WithProtoRegistry adds proto registry for protoast/v2 items.
+func WithProtoRegistry[T Importer](registry *protoast.Registry) ModuleOption[T] {
+	return func(_ hiddenType, m *Module[T]) {
+		m.registry = registry
 	}
 }

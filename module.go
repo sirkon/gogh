@@ -13,6 +13,7 @@ import (
 	"github.com/sirkon/errors"
 	"github.com/sirkon/jsonexec"
 	"github.com/sirkon/message"
+	"github.com/sirkon/protoast/v2"
 )
 
 // Formatter is a signature of source code formatting function. GoFmt and FancyFmt are provided by this package.
@@ -68,6 +69,7 @@ type Module[T Importer] struct {
 	importer       func(imports *Imports) T
 	aliasCorrector AliasCorrector
 	fixedDeps      map[string]semver.Version
+	registry       *protoast.Registry
 
 	pkgs map[string]*Package[T]
 	raws map[string]*RawRenderer

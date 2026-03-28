@@ -6,9 +6,11 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/sirkon/protoast/ast"
+	"github.com/sirkon/protoast/v2/past"
+
 	"github.com/sirkon/gogh/internal/consts"
 	"github.com/sirkon/gogh/internal/heuristics"
-	"github.com/sirkon/protoast/ast"
 )
 
 // F function definition rendering helper.
@@ -311,7 +313,7 @@ func (r *GoFuncRenderer[T]) setReceiverInfo(rcvr ...any) {
 			rt = v.String()
 		case types.Type:
 			rt = r.r.Type(v)
-		case ast.Type:
+		case past.Type:
 			rt = r.r.Proto(v).Impl()
 		default:
 			panic(fmt.Sprintf(
@@ -340,7 +342,7 @@ func (r *GoFuncRenderer[T]) setReceiverInfo(rcvr ...any) {
 			rt = v.String()
 		case types.Type:
 			rt = r.r.Type(v)
-		case ast.Type:
+		case past.Type:
 			rt = r.r.Proto(v).Impl()
 		default:
 			panic(fmt.Sprintf(
@@ -483,7 +485,7 @@ func (r *GoFuncRenderer[T]) semiManualArguments(what string, params ...any) (res
 		case types.Type:
 			value = r.r.Type(w)
 			zero = zeroValueOfTypesType(r.r, w, i < (len(params)/2-1))
-		case ast.Type:
+		case past.Type:
 			value = r.r.Proto(w).Impl()
 			zero = zeroValueOfProtoType(r.r, w)
 		default:

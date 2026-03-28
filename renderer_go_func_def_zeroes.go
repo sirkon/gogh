@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"go/types"
 
+	"github.com/sirkon/protoast/v2/past"
+
 	"github.com/sirkon/gogh/internal/consts"
-	"github.com/sirkon/protoast/ast"
 )
 
 func zeroValueOfTypesType[T Importer](r *GoRenderer[T], t types.Type, isLast bool) (res string) {
@@ -33,7 +34,7 @@ func zeroValueOfTypesType[T Importer](r *GoRenderer[T], t types.Type, isLast boo
 			return `""`
 		}
 	case *types.Named:
-		vv := zeroValueOfTypesType(r, v.Underlying(), isLast)
+		vv := zeroValueOfTypesType[T](r, v.Underlying(), isLast)
 		switch vv {
 		case "", consts.ErrorTypeZeroSign:
 			return vv
@@ -61,25 +62,25 @@ func zeroValueOfTypesType[T Importer](r *GoRenderer[T], t types.Type, isLast boo
 	panic("have no idea how did we get here")
 }
 
-func zeroValueOfProtoType[T Importer](r *GoRenderer[T], t ast.Type) string {
+func zeroValueOfProtoType[T Importer](r *GoRenderer[T], t past.Type) string {
 	switch t.(type) {
-	case *ast.Any, *ast.Bytes, *ast.Repeated, *ast.Map, *ast.Message:
+	case *past.Bytes, *past.Repeated, *past.Map, *past.Message:
 		return "nil"
 
-	case *ast.Bool:
+	case *past.Bool:
 		return "false"
 
-	case *ast.Enum,
-		*ast.Int32, *ast.Int64,
-		*ast.Uint32, *ast.Uint64,
-		*ast.Fixed32, *ast.Fixed64,
-		*ast.Sfixed32, *ast.Sfixed64,
-		*ast.Sint32, *ast.Sint64,
-		*ast.Float32, *ast.Float64:
+	case *past.Enum,
+		*past.Int32, *past.Int64,
+		*past.Uint32, *past.Uint64,
+		*past.Fixed32, *past.Fixed64,
+		*past.Sfixed32, *past.Sfixed64,
+		*past.Sint32, *past.Sint64,
+		*past.Float, *past.Double:
 
 		return "0"
 
-	case *ast.String:
+	case *past.String:
 		return `""`
 
 	default:

@@ -9,7 +9,7 @@ import (
 
 	"github.com/sirkon/errors"
 	"github.com/sirkon/go-format/v2"
-	"github.com/sirkon/protoast/ast"
+	"github.com/sirkon/protoast/v2/past"
 )
 
 var _ format.Formatter = casesFormatter{}
@@ -110,7 +110,7 @@ func (r *GoRenderer[T]) ctxValue(value any) any {
 	switch v := value.(type) {
 	case types.Type:
 		return casesFormatter{value: r.Type(v)}
-	case ast.Type:
+	case past.Type:
 		return casesFormatter{value: r.Proto(v).String()}
 	case types.Object:
 		return casesFormatter{value: r.Object(v)}

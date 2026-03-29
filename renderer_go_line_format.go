@@ -92,6 +92,12 @@ func (r *GoRenderer[T]) renderLine(
 		}
 
 		d := strconv.Itoa(i)
+		switch vv := v.(type) {
+		case past.Type:
+			v = r.Proto(vv)
+		case types.Type:
+			v = r.Type(vv)
+		}
 		bctx.Add(d, v)
 	}
 

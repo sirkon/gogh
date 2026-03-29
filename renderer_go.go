@@ -603,6 +603,10 @@ func (r *GoRenderer[T]) Proto(t past.Type) ProtocType {
 				p, new(past.Message), new(past.File),
 			))
 		}
+	case *past.EnumValue:
+		res := r.Proto(r.protoRegistry().NodeParent(v).(*past.Enum))
+		res.selector += "_" + v.Name()
+		return res
 	case *past.Repeated:
 		return raw("[]" + r.Proto(v.Type).Impl())
 	case *past.Map:

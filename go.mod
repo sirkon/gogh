@@ -11,6 +11,7 @@ require (
 	github.com/sirkon/jsonexec v0.0.5
 	github.com/sirkon/message v1.6.1
 	github.com/sirkon/protoast v0.29.0
+	github.com/sirkon/protoast/v2 v2.1.0
 	golang.org/x/exp v0.0.0-20230510235704-dd950f8aeaea
 	golang.org/x/tools v0.9.1
 )
@@ -20,7 +21,6 @@ require (
 	github.com/lestrrat/go-strftime v0.0.0-20180220042222-ba3bf9c1d042 // indirect
 	github.com/pkg/errors v0.8.1 // indirect
 	github.com/sirkon/go-format v0.1.2 // indirect
-	github.com/sirkon/protoast/v2 v2.1.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/sys v0.8.0 // indirect

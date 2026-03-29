@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/sirkon/protoast/ast"
 	"github.com/sirkon/protoast/v2/past"
 
 	"github.com/sirkon/gogh/internal/consts"
@@ -15,21 +14,22 @@ import (
 
 // F function definition rendering helper.
 // Here name is just a function name and params can be:
-//  - missing at all
-//  - a single instance of Params or *Params
-//  - a single instance of Commas or *Commas
-//  - a single instance of *types.Tuple, where names MUST NOT be empty.
-//  - a list of *types.Var, where names in each one MUST NOT be empty.
-//  - a list of (K₁, V₁, K₂, V₂, ..., Kₙ, Vₙ), where
-//      Kᵢ = (string | fmt.Stringer), except *types.Var even though it is fmt.Stringer.
-//      Vᵢ = (string | fmt.Stringer | types.Type | ast.Type) except *types.Var.
-//    and each Kᵢ value or String() can either be.
-//  - a list of (T₁, T₂, …, T₂ₙ₋₁) composed entirely of strings or fmt.Stringers with
-//    the last value being empty string (or .String() method returning an empty string)
-//    and all other values looking like "<name> <type".
+//   - missing at all
+//   - a single instance of Params or *Params
+//   - a single instance of Commas or *Commas
+//   - a single instance of *types.Tuple, where names MUST NOT be empty.
+//   - a list of *types.Var, where names in each one MUST NOT be empty.
+//   - a list of (K₁, V₁, K₂, V₂, ..., Kₙ, Vₙ), where
+//     Kᵢ = (string | fmt.Stringer), except *types.Var even though it is fmt.Stringer.
+//     Vᵢ = (string | fmt.Stringer | types.Type | past.Type) except *types.Var.
+//     and each Kᵢ value or String() can either be.
+//   - a list of (T₁, T₂, …, T₂ₙ₋₁) composed entirely of strings or fmt.Stringers with
+//     the last value being empty string (or .String() method returning an empty string)
+//     and all other values looking like "<name> <type".
 //
 // Usage example:
-//     r.F("name")(
+//
+//	r.F("name")(
 func (r *GoRenderer[T]) F(name string) func(params ...any) *GoFuncRenderer[T] {
 	return func(params ...any) *GoFuncRenderer[T] {
 		res := &GoFuncRenderer[T]{
@@ -46,23 +46,26 @@ func (r *GoRenderer[T]) F(name string) func(params ...any) *GoFuncRenderer[T] {
 }
 
 // M method definition rendering helper. rcvr must be one of:
-//  - single string
-//  - single fmt.Stringer
-//  - single *types.Var
-//  - single types.Type
-//  - single ast.Type
-//  - a string or fmt.Stringer followed by an any option above except *types.Var.
+//   - single string
+//   - single fmt.Stringer
+//   - single *types.Var
+//   - single types.Type
+//   - single past.Type
+//   - a string or fmt.Stringer followed by an any option above except *types.Var.
 //
 // The return value is a function with a signature whose semantics matches F.
 //
 // So, the usage of this method will be like
-//     r.M("t", "*Type")("Name")("ctx $ctx.Context").Returns("string", "error, "").Body(func(…) {
-//         r.L(`return $ZeroReturnValue $errs.New("error")`)
-//     })
+//
+//	r.M("t", "*Type")("Name")("ctx $ctx.Context").Returns("string", "error, "").Body(func(…) {
+//	    r.L(`return $ZeroReturnValue $errs.New("error")`)
+//	})
+//
 // Producing this code
-//     func (t *Type) Name(ctx context.Context) (string, error) {
-//         return "", errors.New("error")
-//     }
+//
+//	func (t *Type) Name(ctx context.Context) (string, error) {
+//	    return "", errors.New("error")
+//	}
 func (r *GoRenderer[T]) M(rcvr ...any) func(name string) func(params ...any) *GoFuncRenderer[T] {
 	return func(name string) func(params ...any) *GoFuncRenderer[T] {
 		res := &GoFuncRenderer[T]{
@@ -103,17 +106,17 @@ type (
 // [types] or ast [libraries
 //
 // Arguments are treated almost the same way as for function/method calls, it can be:
-//  - missing at all
-//  - a single instance of Params or *Params
-//  - a single instance of Commas or *Commas
-//  - a single instance of *types.Tuple.
-//  - a list of *types.Var.
-//  - a list of (K₁, V₁, K₂, V₂, ..., Kₙ, Vₙ), where *types.Var are not allowed
-//    for Ks anv Vs, Ks must be string or stringers and Vs must be string or
-//    stringers  or *types.Tuple or
-//    and each Kᵢ value or String() can either be .
-//  - a list of (T₁, T₂, …, T₂ₙ₋₁) composed entirely of strings or fmt.Stringers with
-//    the last value being empty string (or .String() method returning an empty string)
+//   - missing at all
+//   - a single instance of Params or *Params
+//   - a single instance of Commas or *Commas
+//   - a single instance of *types.Tuple.
+//   - a list of *types.Var.
+//   - a list of (K₁, V₁, K₂, V₂, ..., Kₙ, Vₙ), where *types.Var are not allowed
+//     for Ks anv Vs, Ks must be string or stringers and Vs must be string or
+//     stringers  or *types.Tuple or
+//     and each Kᵢ value or String() can either be .
+//   - a list of (T₁, T₂, …, T₂ₙ₋₁) composed entirely of strings or fmt.Stringers with
+//     the last value being empty string (or .String() method returning an empty string)
 //
 // It may produce zero values expression for a return statement,
 // but this rather depends on types, if this call could deduce
@@ -122,24 +125,24 @@ type (
 //
 // Specifics:
 //
-//  - If the last argument type is the error, "zero value" of the
-//    last return type is empty. It is because we mostly need them
-//    (zero values) to return an error, where we will be setting an
-//    expression for the last return value (error) ourselves.
-//  - Zero values depend on return types. We can only rely on
-//    text matching heuristics if types are represented as strings.
-//    We wouldn't have much trouble with types.Type or ast.Type though.
-//    In case if our return values are named, "zeroes" will be just
-//    these names. Except the case of "_" names of course, where we
-//    will use heuristics again.
+//   - If the last argument type is the error, "zero value" of the
+//     last return type is empty. It is because we mostly need them
+//     (zero values) to return an error, where we will be setting an
+//     expression for the last return value (error) ourselves.
+//   - Zero values depend on return types. We can only rely on
+//     text matching heuristics if types are represented as strings.
+//     We wouldn't have much trouble with types.Type or past.Type though.
+//     In case if our return values are named, "zeroes" will be just
+//     these names. Except the case of "_" names of course, where we
+//     will use heuristics again.
 //
 // Raw text heuristics rules:
-//  - Builtin types like int, uint32, bool, string, etc are supported,
-//    even though they may be shadowed somehow. We just guess
-//    they weren't and this is acceptable for most cases.
-//  - Chans, maps, slices, pointers are supported too.
-//  - Error type is matched by its name, same guess as for builtins
-//    here.
+//   - Builtin types like int, uint32, bool, string, etc are supported,
+//     even though they may be shadowed somehow. We just guess
+//     they weren't and this is acceptable for most cases.
+//   - Chans, maps, slices, pointers are supported too.
+//   - Error type is matched by its name, same guess as for builtins
+//     here.
 func (r *GoFuncRenderer[T]) Returns(results ...any) *GoFuncBodyRenderer[T] {
 	var zeroes []string
 
@@ -320,7 +323,7 @@ func (r *GoFuncRenderer[T]) setReceiverInfo(rcvr ...any) {
 				"single receiver value type can be string|fmt.String|%T|%T|%T, got %T",
 				new(types.Var),
 				types.Type(nil),
-				ast.Type(nil),
+				past.Type(nil),
 				rcvr[0],
 			))
 		}
@@ -348,7 +351,7 @@ func (r *GoFuncRenderer[T]) setReceiverInfo(rcvr ...any) {
 			panic(fmt.Sprintf(
 				"receiver type parameter can be string|fmt.String|%T|%T, got %T",
 				types.Type(nil),
-				ast.Type(nil),
+				past.Type(nil),
 				rcvr[0],
 			))
 		}
@@ -492,7 +495,7 @@ func (r *GoFuncRenderer[T]) semiManualArguments(what string, params ...any) (res
 			panic(fmt.Sprintf(
 				"value type must one of of string|fmt.Stringer|%T|%T, got %T",
 				types.Type(nil),
-				ast.Type(nil),
+				past.Type(nil),
 				v,
 			))
 		}

@@ -92,6 +92,10 @@ func (r *GoRenderer[T]) renderLine(
 		}
 
 		d := strconv.Itoa(i)
+		if vv, ok := r.uniqTags[v]; ok {
+			bctx.Add(d, vv)
+			continue
+		}
 		switch vv := v.(type) {
 		case past.Type:
 			v = r.Proto(vv)

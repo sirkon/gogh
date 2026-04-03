@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/sirkon/errors"
+
 	"github.com/sirkon/gogh/internal/blocks"
 )
 
@@ -45,6 +46,7 @@ func (p *Package[T]) Go(name string, opts ...RendererOption) (res *GoRenderer[T]
 		vals:      newEmptyValScope(),
 		blocksmgr: blocks.New(),
 		uniqs:     map[string]struct{}{},
+		uniqTags:  map[any]string{},
 	}
 
 	imports := &Imports{
@@ -164,6 +166,7 @@ func (p *Package[T]) Void() *GoRenderer[T] {
 		vals:      newEmptyValScope(),
 		blocksmgr: blocks.New(),
 		uniqs:     map[string]struct{}{},
+		uniqTags:  map[any]string{},
 	}
 
 	imports := &Imports{

@@ -58,6 +58,7 @@ type GoRenderer[T Importer] struct {
 	vals                *valScope
 	blocksmgr           *blocks.Manager
 	uniqs               map[string]struct{}
+	uniqTags            map[any]string
 	preImport           map[string]struct{}
 	reuse               bool
 	reuseFirstImportPos int
@@ -233,6 +234,15 @@ func (r *GoRenderer[T]) Uniq(name string, optSuffix ...string) string {
 	panic(errors.Newf("cannot find scope unique name for given base '%s'", name))
 }
 
+// BindUniq creates unique value (same as Uniq) and then binds it to the given "tag".
+// Formatting will use that bound unique value instead of tag representation.
+func (r *GoRenderer[T]) UniqBind(tag any, name string, optSuffix ...string) string {
+	val := r.Uniq(name, optSuffix...)
+	r.uniqTags[tag] = val
+
+	return val
+}
+
 // Taken checks if the given unique name has been taken before.
 func (r *GoRenderer[T]) Taken(name string) bool {
 	_, ok := r.uniqs[name]
@@ -333,6 +343,7 @@ func (r *GoRenderer[T]) Scope() (res *GoRenderer[T]) {
 		vals:      r.vals.Next(),
 		blocksmgr: r.blocksmgr,
 		uniqs:     maps.Clone(r.uniqs),
+		uniqTags:  maps.Clone(r.uniqTags),
 	}
 }
 
@@ -385,6 +396,7 @@ func (r *GoRenderer[T]) Z() (res *GoRenderer[T]) {
 		vals:      r.vals,
 		blocksmgr: r.blocksmgr.Insert().Prev(),
 		uniqs:     r.uniqs,
+		uniqTags:  r.uniqTags,
 	}
 
 	return res

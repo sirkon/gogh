@@ -10,7 +10,7 @@ require (
 	github.com/sirkon/go-format/v2 v2.0.2
 	github.com/sirkon/jsonexec v0.0.5
 	github.com/sirkon/message v1.9.0
-	github.com/sirkon/protoast/v2 v2.1.0
+	github.com/sirkon/protoast/v2 v2.3.2
 	golang.org/x/exp v0.0.0-20230510235704-dd950f8aeaea
 	golang.org/x/tools v0.9.1
 )

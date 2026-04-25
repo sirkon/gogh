@@ -24,5 +24,5 @@ require (
 	github.com/pkg/errors v0.8.1 // indirect
 	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/sys v0.8.0 // indirect
-	google.golang.org/protobuf v1.27.1 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 )

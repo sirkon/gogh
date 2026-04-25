@@ -3,9 +3,13 @@ package gogh
 import (
 	"bytes"
 	"fmt"
+	"go/ast"
+	"go/parser"
 	"go/types"
+	"iter"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/sirkon/errors"
 	"github.com/sirkon/go-format/v2"
@@ -80,6 +84,24 @@ func (r *GoRenderer[T]) renderLine(
 	line string,
 	a ...any,
 ) {
+	r.linebuf.Reset()
+	if r.linebuf.Cap() < len(line)+2 {
+		r.linebuf.Grow(len(line))
+	}
+	for part := range inlineUniqueParts(line) {
+		switch part.typ {
+		case inlinePartTypeText:
+			r.linebuf.WriteString(part.val)
+		case inlinePartTypeUnique:
+			val := r.Uniq(part.val)
+			r.Let(part.val, val)
+			r.linebuf.WriteString("${")
+			r.linebuf.WriteString(part.val)
+			r.linebuf.WriteByte('}')
+		}
+	}
+
+	line = r.linebuf.String()
 	bctx := r.renderCtx()
 
 	if bctx == nil {
@@ -102,7 +124,7 @@ func (r *GoRenderer[T]) renderLine(
 		case types.Type:
 			v = r.Type(vv)
 		}
-		bctx.Add(d, v)
+		bctx.Add(d, r.ctxValue(v))
 	}
 
 	ctx, err := bctx.Build()
@@ -176,4 +198,127 @@ func renderLine(
 		panic(errors.Wrap(err, "format with context"))
 	}
 	dst.WriteString(res)
+}
+
+func inlineUniqueParts(line string) iter.Seq[inlinePart] {
+	return func(yield func(part inlinePart) bool) {
+		for len(line) > 0 {
+			pos := strings.IndexByte(line, '@')
+			if pos < 0 {
+				part := inlinePart{
+					typ: inlinePartTypeText,
+					val: line,
+				}
+				if !yield(part) {
+					return
+				}
+				return
+			}
+
+			if pos == len(line)-1 {
+				panic(errors.New(errorInvalidInlineUniqueSyntax))
+			}
+
+			if pos > 0 {
+				part := inlinePart{
+					typ: inlinePartTypeText,
+					val: line[:pos],
+				}
+				if !yield(part) {
+					return
+				}
+				line = line[pos:]
+			}
+
+			//
+			switch line[1] {
+			case '@':
+				part := inlinePart{
+					typ: inlinePartTypeText,
+					val: "@",
+				}
+				if !yield(part) {
+					return
+				}
+				line = line[2:]
+			case '{':
+				pos = strings.IndexByte(line, '}')
+				if pos < 0 {
+					panic(errors.Newf("missing '}' for inline unique after %s", trailer(line)))
+				}
+				expr, err := parser.ParseExpr(line[2:pos])
+				if err != nil || !isIdent(expr) {
+					panic(errors.Newf("invalid inline unique argument %s", line[:2]+"\033[1m"+line[2:pos]+"\033[0m"+line[pos:]))
+				}
+				node := inlinePart{
+					typ: inlinePartTypeUnique,
+					val: line[2:pos],
+				}
+				if !yield(node) {
+					return
+				}
+				line = line[pos+1:]
+
+			default:
+				var ident string
+				ident, line = scrapIdentifier(line[1:])
+				if ident == "" {
+					panic(errors.New(errorInvalidInlineUniqueSyntax))
+				}
+				node := inlinePart{
+					typ: inlinePartTypeUnique,
+					val: ident,
+				}
+				if !yield(node) {
+					return
+				}
+			}
+		}
+	}
+}
+
+type inlinePart struct {
+	typ inplinePartType
+	val string
+}
+
+type inplinePartType int
+
+const (
+	inlinePartTypeText inplinePartType = iota
+	inlinePartTypeUnique
+)
+
+const errorInvalidInlineUniqueSyntax = "symbol @ must be followed by '@' or '{' or correct Go identifier"
+
+func trailer(line string) (res string) {
+	defer func() {
+		res = "\033[1m" + res + "\033[0m"
+	}()
+
+	if len(line) < 20 {
+		return line
+	}
+
+	return line[:7] + "..."
+}
+
+func scrapIdentifier(line string) (ident string, tail string) {
+	for i, c := range line {
+		if unicode.IsLetter(c) || c == '_' {
+			continue
+		}
+		if i > 0 && unicode.IsDigit(c) {
+			continue
+		}
+
+		return line[:i], line[i:]
+	}
+
+	return line, ""
+}
+
+func isIdent(node ast.Expr) bool {
+	_, ok := node.(*ast.Ident)
+	return ok
 }

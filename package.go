@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/sirkon/errors"
+	"github.com/sirkon/message"
 
 	"github.com/sirkon/gogh/internal/blocks"
 )
@@ -72,6 +73,20 @@ func (p *Package[T]) Go(name string, opts ...RendererOption) (res *GoRenderer[T]
 		cacher: func(alias, pkgpath string) {
 			p.mod.pkgcache[pkgpath] = alias
 		},
+		coldHash: func(pkgpath string) string {
+			result, err := p.mod.getValueFromBolt(pkgpath)
+			if err != nil {
+				message.Warning(errors.Wrap(err, "failed to look for package name into the cold hash"))
+				return ""
+			}
+
+			return result
+		},
+		coldSave: func(pkgpath string, name string) {
+			if err := p.mod.putValueToBold(pkgpath, name); err != nil {
+				message.Warning(errors.Wrap(err, "failed to save package name into the cold hash"))
+			}
+		},
 		inprocess: func(pkgpath string) string {
 			for _, pkg := range p.mod.pkgs {
 				if pkg.Path() == pkgpath {
@@ -84,6 +99,8 @@ func (p *Package[T]) Go(name string, opts ...RendererOption) (res *GoRenderer[T]
 		namer: func(relpath string) string {
 			return path.Join(p.mod.name, relpath)
 		},
+		pending:   nil,
+		corrector: nil,
 	}
 	res.imports = p.mod.importer(imports)
 	p.rs[name] = res
@@ -179,6 +196,20 @@ func (p *Package[T]) Void() *GoRenderer[T] {
 		},
 		cacher: func(alias, pkgpath string) {
 			p.mod.pkgcache[pkgpath] = alias
+		},
+		coldHash: func(pkgpath string) string {
+			result, err := p.mod.getValueFromBolt(pkgpath)
+			if err != nil {
+				message.Warning(errors.Wrap(err, "failed to look for value into the cold hash"))
+				return ""
+			}
+
+			return result
+		},
+		coldSave: func(pkgpath string, name string) {
+			if err := p.mod.putValueToBold(pkgpath, name); err != nil {
+				message.Warning(errors.Wrap(err, "failed to put value into the cold hash"))
+			}
 		},
 		inprocess: func(pkgpath string) string {
 			for _, pkg := range p.mod.pkgs {

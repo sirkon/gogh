@@ -16,9 +16,13 @@ require (
 )
 
 require (
+	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/emicklei/proto v1.14.3 // indirect
+	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/lestrrat/go-strftime v0.0.0-20180220042222-ba3bf9c1d042 // indirect
 	github.com/pkg/errors v0.8.1 // indirect
+	github.com/sirkon/deepequal v0.5.9 // indirect
 	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/sys v0.8.0 // indirect
+	google.golang.org/protobuf v1.27.1 // indirect
 )

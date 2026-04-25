@@ -54,6 +54,7 @@ type GoRenderer[T Importer] struct {
 	imports T
 	options []RendererOption
 
+	linebuf             bytes.Buffer
 	cmt                 *bytes.Buffer
 	vals                *valScope
 	blocksmgr           *blocks.Manager
@@ -125,7 +126,7 @@ func (r *GoRenderer[T]) Imports() T {
 
 // N puts the new line character into the buffer.
 func (r *GoRenderer[T]) N() {
-	defer handlePanic()
+	defer r.handlePanic()
 	r.imports.Imports().pushImports()
 	r.newline()
 }
@@ -174,7 +175,7 @@ func (r *GoRenderer[T]) C(a ...any) {
 //
 // [format]: https://github.com/sirkon/go-format
 func (r *GoRenderer[T]) L(line string, a ...any) {
-	defer handlePanic()
+	defer r.handlePanic()
 	r.imports.Imports().pushImports()
 	r.renderLine(r.last(), line, a...)
 	r.newline()
@@ -182,7 +183,7 @@ func (r *GoRenderer[T]) L(line string, a ...any) {
 
 // R puts raw text without formatting into the buffer.
 func (r *GoRenderer[T]) R(line string) {
-	defer handlePanic()
+	defer r.handlePanic()
 	r.imports.Imports().pushImports()
 	r.last().WriteString(line)
 	r.newline()
@@ -190,7 +191,7 @@ func (r *GoRenderer[T]) R(line string) {
 
 // S same as L but returns string instead of buffer write.
 func (r *GoRenderer[T]) S(line string, a ...any) string {
-	defer handlePanic()
+	defer r.handlePanic()
 	r.imports.Imports().pushImports()
 	var res bytes.Buffer
 	r.renderLine(&res, line, a...)
@@ -258,7 +259,7 @@ func (r *GoRenderer[T]) Let(name string, value any) {
 	}
 
 	if r.vals.CheckScope(name) {
-		panic(errors.Newf("attempt to change context constant for %s to a different value", name))
+		panic(errors.Newf("attempt to change context constant %q to a different value", name))
 	}
 
 	r.letSet(name, r.ctxValue(value))
@@ -831,38 +832,40 @@ func (r *GoRenderer[T]) protocTypePkgPath(t past.Node) string {
 	panic("orphan node without a file in its hierarchy ties")
 }
 
-func handlePanic() {
-	r := recover()
-	if r == nil {
+func (r *GoRenderer[T]) handlePanic() {
+	rr := recover()
+	if rr == nil {
 		return
 	}
+	if err := r.pkg.mod.bolt.Close(); err != nil {
+		message.Warning(errors.Wrap(err, "failed to close bolt"))
+	}
 
-	frame := getOuterFrame()
+	frame := r.getOuterFrame()
 	if frame == nil {
 		// что-то странное
-		panic(r)
+		panic(rr)
 	}
 
 	message.Errorf("%s:%d %s", frame.File, frame.Line, r)
-	panic(r)
+	os.Exit(1)
 }
 
-func getOuterFrame() *runtime.Frame {
+func (r *GoRenderer[T]) getOuterFrame() *runtime.Frame {
 	stack := assembleWholeFrame(32)
 
-	var wasFormattingFrame bool
+	var lastFrame *runtime.Frame
 
 	for {
 		frame, ok := stack.Next()
-		isFormattingFrame := isInternalStuff(frame.File)
-		if wasFormattingFrame && !isFormattingFrame {
-			return &frame
-		}
-		wasFormattingFrame = isFormattingFrame
 		if !ok {
-			// все пакеты внутри — наверное это тестирование!
-			return &frame
+			return lastFrame
 		}
+		lastFrame = new(frame)
+		if r.isInternalStuff(frame.File) {
+			continue
+		}
+		return lastFrame
 	}
 }
 
@@ -884,12 +887,19 @@ func assembleWholeFrame(startSize int) *runtime.Frames {
 	}
 }
 
-func isInternalStuff(path string) bool {
-	if strings.Index(path, goghPkg) >= 0 {
-		return true
+func (r *GoRenderer[T]) isInternalStuff(path string) bool {
+	if pos := strings.Index(path, goghPkg); pos >= 0 {
+		rest := path[pos+len(goghPkg):]
+		if strings.IndexRune(rest, os.PathSeparator) < 0 {
+			return true
+		}
 	}
 
 	if strings.Index(path, goFormatPkg) >= 0 {
+		return true
+	}
+
+	if strings.HasPrefix(path, r.pkg.mod.goroot) {
 		return true
 	}
 

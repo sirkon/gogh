@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/blang/semver/v4"
+	"github.com/boltdb/bolt"
 	"github.com/sirkon/errors"
 	"github.com/sirkon/jsonexec"
 	"github.com/sirkon/message"
@@ -26,7 +27,8 @@ func New[T Importer](
 	opts ...ModuleOption[T],
 ) (*Module[T], error) {
 	var envData struct {
-		GOMOD string
+		GOMOD  string
+		GOROOT string
 	}
 	if err := jsonexec.Run(&envData, "go", "env", "--json"); err != nil {
 		return nil, errors.Wrap(err, "get module environment data")
@@ -44,14 +46,31 @@ func New[T Importer](
 		return nil, errors.Wrap(err, "get current module info")
 	}
 
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return nil, errors.Wrap(err, "get user cache dir")
+	}
+	goghProjectsApp := filepath.Join(cacheDir, "GoghProjects")
+	if err := os.MkdirAll(goghProjectsApp, 0755); err != nil {
+		return nil, errors.Wrap(err, "create gogh projects app dir")
+	}
+	boltPath := filepath.Join(goghProjectsApp, "bolt.db")
+	db, err := bolt.Open(boltPath, 0600, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "init bolt db")
+	}
+
 	res := &Module[T]{
-		name:     moduleData.Module.Path,
-		root:     filepath.Dir(envData.GOMOD),
-		fmt:      formatter,
-		importer: importer,
-		pkgs:     map[string]*Package[T]{},
-		raws:     map[string]*RawRenderer{},
-		pkgcache: map[string]string{},
+		name:       moduleData.Module.Path,
+		root:       filepath.Dir(envData.GOMOD),
+		goroot:     envData.GOROOT,
+		fmt:        formatter,
+		importer:   importer,
+		pkgs:       map[string]*Package[T]{},
+		raws:       map[string]*RawRenderer{},
+		pkgcache:   map[string]string{},
+		bolt:       db,
+		goghBucket: []byte("gogh-projects"),
 	}
 
 	for _, opt := range opts {
@@ -65,16 +84,20 @@ func New[T Importer](
 type Module[T Importer] struct {
 	name           string
 	root           string
+	goroot         string
 	fmt            func([]byte) ([]byte, error)
 	importer       func(imports *Imports) T
 	aliasCorrector AliasCorrector
+	deps           map[string]semver.Version
 	fixedDeps      map[string]semver.Version
 	registry       *protoast.Registry
 
 	pkgs map[string]*Package[T]
 	raws map[string]*RawRenderer
 
-	pkgcache map[string]string
+	pkgcache   map[string]string
+	bolt       *bolt.DB
+	goghBucket []byte
 }
 
 // Root create if needed and returns a package placed right in the project root. The name parameter is rather
@@ -192,7 +215,13 @@ func (m *Module[T]) Name() string {
 }
 
 // Render renders generated data
-func (m *Module[T]) Render() error {
+func (m *Module[T]) Render() (err error) {
+	defer func() {
+		if err := m.bolt.Close(); err != nil {
+			message.Warning(errors.Wrap(err, "failed to close bolt db"))
+		}
+	}()
+
 	for pkgpath, pkg := range m.pkgs {
 		for name, r := range pkg.rs {
 			fullname := filepath.Join(m.root, pkgpath, name)
@@ -271,6 +300,48 @@ func (m *Module[T]) getPackage(name, pkgpath string) (*Package[T], error) {
 	}
 	m.pkgs[pkgpath] = res
 	return res, nil
+}
+
+func (m *Module[T]) getValueFromBolt(key string) (string, error) {
+	var result string
+	err := m.bolt.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(m.goghBucket)
+		if bucket == nil {
+			return nil
+		}
+
+		result = string(bucket.Get([]byte(key)))
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return result, nil
+}
+
+func (m *Module[T]) putValueToBold(key, value string) error {
+	err := m.bolt.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(m.goghBucket)
+		if bucket == nil {
+			var err error
+			bucket, err = tx.CreateBucket(m.goghBucket)
+			if err != nil {
+				return errors.Wrap(err, "create bucket")
+			}
+		}
+
+		if err := bucket.Put([]byte(key), []byte(value)); err != nil {
+			return errors.Wrap(err, "put value into bucket")
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // validatePackagePath pkgpath must no be absolute nor must not have . or .. as its components

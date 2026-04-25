@@ -26,6 +26,8 @@ type Imports struct {
 	varcapter func(name string, value string) string
 	cached    func(pkgpath string) string
 	cacher    func(alias, pkgpath string)
+	coldHash  func(pkgpath string) string
+	coldSave  func(pkgpath string, name string)
 	inprocess func(pkgpath string) string
 	namer     func(relpath string) string
 	pending   []*ImportAliasControl
@@ -72,6 +74,10 @@ func (i *Imports) getPkgName(pkgpath string) string {
 		return v
 	}
 
+	if v := i.coldHash(pkgpath); v != "" {
+		return v
+	}
+
 	// it can be only outer package if we reach here, use go list
 	var pkginfo struct {
 		Name string
@@ -79,6 +85,7 @@ func (i *Imports) getPkgName(pkgpath string) string {
 	if err := jsonexec.Run(&pkginfo, "go", "list", "--json", pkgpath); err != nil {
 		panic(errors.Wrapf(err, "get package %s info", pkgpath))
 	}
+	i.coldSave(pkgpath, pkginfo.Name)
 
 	return pkginfo.Name
 }

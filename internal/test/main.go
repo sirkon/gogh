@@ -2,8 +2,9 @@ package main
 
 import (
 	"github.com/sirkon/errors"
-	"github.com/sirkon/gogh"
 	"github.com/sirkon/message"
+
+	"github.com/sirkon/gogh"
 )
 
 func main() {
@@ -18,7 +19,7 @@ func main() {
 		return
 	}
 
-	p, err := m.Current("")
+	p, err := m.Package("", "internal/test")
 	if err != nil {
 		message.Fatal(errors.Wrap(err, "open current package"))
 	}
@@ -26,7 +27,8 @@ func main() {
 	r := p.Go("add.go", gogh.Autogen("test"))
 
 	r.Imports().Add("fmt")
-	r.L(`func __() {`)
+	r.N()
+	r.L(`func _() {`)
 	r.L(`    fmt.Println("Hello World!")`)
 	r.L(`}`)
 
@@ -48,6 +50,9 @@ func main() {
 		r.L(`if a == $conv.Itoa(b) {`)
 		r.L(`    return $ReturnZeroValues $errs.New("can't be'")`)
 		r.L(`}`)
+		r.N()
+		r.L(`var @unique int`)
+		r.L(`_ = $unique`)
 		r.N()
 		r.L(`return true, nil`)
 	})

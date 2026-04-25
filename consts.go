@@ -1,8 +1,8 @@
 package gogh
 
 const (
-	goghPkg      = "/gogh"
-	goFormatPkg  = "/go-format"
+	goghPkg      = "/gogh/"
+	goFormatPkg  = "/go-format/"
 	runtimeStuff = "/src/runtime/"
 
 	// ReturnZeroValues is used as a renderer's scope key to represent

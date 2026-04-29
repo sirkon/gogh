@@ -1,7 +1,10 @@
 package gogh
 
+import (
+	"regexp"
+)
+
 const (
-	goghPkg      = "/gogh/"
 	goFormatPkg  = "/go-format/"
 	runtimeStuff = "/src/runtime/"
 
@@ -11,3 +14,5 @@ const (
 	// It is computed automatically in some cases
 	ReturnZeroValues = "ReturnZeroValues"
 )
+
+var goghPkg = regexp.MustCompile(`^.*/gogh(:?@v\d+\.\d+\.\d+[^/]*)?/[^/]+$`)

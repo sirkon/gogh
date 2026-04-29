@@ -847,7 +847,7 @@ func (r *GoRenderer[T]) handlePanic() {
 		panic(rr)
 	}
 
-	message.Errorf("%s:%d %s", frame.File, frame.Line, r)
+	message.Errorf("%s:%d %s", frame.File, frame.Line, rr)
 	os.Exit(1)
 }
 
@@ -888,11 +888,8 @@ func assembleWholeFrame(startSize int) *runtime.Frames {
 }
 
 func (r *GoRenderer[T]) isInternalStuff(path string) bool {
-	if pos := strings.Index(path, goghPkg); pos >= 0 {
-		rest := path[pos+len(goghPkg):]
-		if strings.IndexRune(rest, os.PathSeparator) < 0 {
-			return true
-		}
+	if goghPkg.MatchString(path) {
+		return true
 	}
 
 	if strings.Index(path, goFormatPkg) >= 0 {
@@ -900,6 +897,10 @@ func (r *GoRenderer[T]) isInternalStuff(path string) bool {
 	}
 
 	if strings.HasPrefix(path, r.pkg.mod.goroot) {
+		return true
+	}
+
+	if strings.Contains(path, runtimeStuff) {
 		return true
 	}
 

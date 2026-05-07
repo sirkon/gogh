@@ -897,7 +897,7 @@ func (r *GoRenderer[T]) isInternalStuff(path string) bool {
 	}
 
 	if strings.HasPrefix(path, r.pkg.mod.goroot) {
-		return true
+		return false
 	}
 
 	if strings.Contains(path, runtimeStuff) {

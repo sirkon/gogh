@@ -66,9 +66,9 @@ satisfying `gogh.Importer` interface
 ```go
 // Importer an abstraction covert Imports
 type Importer interface {
-Imports() *Imports
-Add(pkgpath string) *ImportAliasControl
-Module(relpath string) *ImportAliasControl
+    Imports() *Imports
+    Add(pkgpath string) *ImportAliasControl
+    Module(relpath string) *ImportAliasControl
 }
 ```
 

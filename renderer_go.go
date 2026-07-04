@@ -63,6 +63,8 @@ type GoRenderer[T Importer] struct {
 	preImport           map[string]struct{}
 	reuse               bool
 	reuseFirstImportPos int
+
+	parent *GoRenderer[T]
 }
 
 // GoRendererBuffer switches the given renderer to a new
@@ -345,12 +347,22 @@ func (r *GoRenderer[T]) Scope() (res *GoRenderer[T]) {
 		blocksmgr: r.blocksmgr,
 		uniqs:     maps.Clone(r.uniqs),
 		uniqTags:  maps.Clone(r.uniqTags),
+
+		parent: r,
 	}
 }
 
 // InnerScope creates a new scope and feeds it into the given function.
 func (r *GoRenderer[T]) InnerScope(f func(r *GoRenderer[T])) {
 	f(r.Scope())
+}
+
+func (r *GoRenderer[T]) Parent() *GoRenderer[T] {
+	if r.parent == nil {
+		panic(errors.Newf("renderer for %q does not have a parent", r.name))
+	}
+
+	return r.parent
 }
 
 // Z provides a renderer instance of "laZy" writing.
@@ -837,42 +849,64 @@ func (r *GoRenderer[T]) handlePanic() {
 	if rr == nil {
 		return
 	}
-	if err := r.pkg.mod.bolt.Close(); err != nil {
-		message.Warning(errors.Wrap(err, "failed to close bolt"))
+
+	// Безопасное закрытие базы
+	if r.pkg != nil && r.pkg.mod != nil && r.pkg.mod.bolt != nil {
+		if err := r.pkg.mod.bolt.Close(); err != nil {
+			message.Warning(errors.Wrap(err, "failed to close bolt"))
+		}
 	}
 
-	frame := r.getOuterFrame()
-	if frame == nil {
-		// что-то странное
+	frames := r.getOuterFrames()
+	if len(frames) == 0 {
+		// Если не смогли расковырять стек, фолбекаемся на стандартную панику
 		panic(rr)
 	}
 
-	message.Errorf("%s:%d %s", frame.File, frame.Line, rr)
+	// Форматируем красивый отчет
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("%s\nCalls trace in generator:\n", rr))
+	for _, frame := range frames {
+		sb.WriteString(fmt.Sprintf("  -> %s:%d (в %s)\n", frame.File, frame.Line, frame.Function))
+	}
+
+	message.Errorf("%s", sb.String())
 	os.Exit(1)
 }
 
-func (r *GoRenderer[T]) getOuterFrame() *runtime.Frame {
+// getOuterFrames собирает ВСЕ кадры, которые не относятся к внутренностям gogh/runtime
+func (r *GoRenderer[T]) getOuterFrames() []runtime.Frame {
 	stack := assembleWholeFrame(32)
+	if stack == nil {
+		return nil
+	}
 
-	var lastFrame *runtime.Frame
+	var outerFrames []runtime.Frame
 
 	for {
 		frame, ok := stack.Next()
 		if !ok {
-			return lastFrame
+			break
 		}
-		lastFrame = new(frame)
-		if r.isInternalStuff(frame.File) {
+
+		// Проверяем на внутренние пакеты gogh, go-format и runtime
+		if r.isInternalStuff(frame.File) || strings.Contains(frame.Function, "gogh.(*GoRenderer)") {
 			continue
 		}
-		return lastFrame
+
+		if frame.File != "" {
+			outerFrames = append(outerFrames, frame)
+		}
 	}
+
+	return outerFrames
 }
 
 func assembleWholeFrame(startSize int) *runtime.Frames {
 	for {
 		pc := make([]uintptr, startSize)
-		n := runtime.Callers(2, pc)
+		// Сдвиг 3 пропускает: runtime.Callers, assembleWholeFrame и вызывающий getOuterFrames
+		n := runtime.Callers(3, pc)
 		if n == 0 {
 			return nil
 		}
@@ -882,7 +916,6 @@ func assembleWholeFrame(startSize int) *runtime.Frames {
 			continue
 		}
 
-		pc = pc[:n]
 		return runtime.CallersFrames(pc[:n])
 	}
 }

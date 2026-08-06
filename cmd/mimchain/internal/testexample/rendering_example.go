@@ -2,7 +2,9 @@
 
 package testexample
 
-import "github.com/sirkon/errors"
+import (
+	"github.com/sirkon/errors"
+)
 
 func newExample() error {
 	return errors.New("something failed").Str("something", "value")

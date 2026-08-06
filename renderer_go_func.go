@@ -377,7 +377,7 @@ func (r *GoFuncRenderer[T]) inPlaceSeq(what string, tuples ...any) ([][2]string,
 		panic(fmt.Sprintf("build %s %s %s: %v", r.kind(), r.name, what, p))
 	}()
 
-	// Проверяем, что есть
+	// Check what we have.
 	if _, isVar := tuples[0].(*types.Var); isVar {
 		return r.varArguments("argument", tuples...)
 	} else {

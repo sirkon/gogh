@@ -1,13 +1,13 @@
 package gogh
 
-// ProtocType сущность для различных сценариев использования сгенерированного protoc-gen-go типа
+// ProtocType is an entity for various usage scenarios of a generated protoc-gen-go type.
 type ProtocType struct {
 	pointer  bool
 	source   string
 	selector string
 }
 
-// String имя сгенерированного типа
+// String returns the name of the generated type.
 func (s ProtocType) String() string {
 	if s.source != "" {
 		return s.source + "." + s.selector
@@ -16,7 +16,8 @@ func (s ProtocType) String() string {
 	}
 }
 
-// Impl используемый тип (добавляется указатель, если proto.Message реализуется на указателе на значение типа)
+// Impl returns the type as used (a pointer is added if proto.Message is
+// implemented on a pointer to the value type).
 func (s ProtocType) Impl() string {
 	var expr string
 	if s.source != "" {
@@ -30,12 +31,13 @@ func (s ProtocType) Impl() string {
 	return expr
 }
 
-// Local локальное имя сгенерированного типа
+// Local returns the local name of the generated type.
 func (s ProtocType) Local() string {
 	return s.selector
 }
 
-// LocalImpl локальный используемый тип (добавляется указатель, если proto.Message реализуется на указателе на значение типа)
+// LocalImpl returns the local type as used (a pointer is added if proto.Message
+// is implemented on a pointer to the value type).
 func (s ProtocType) LocalImpl() string {
 	if s.pointer {
 		return "*" + s.selector
@@ -43,7 +45,7 @@ func (s ProtocType) LocalImpl() string {
 	return s.selector
 }
 
-// Pkg возвращает название пакета
+// Pkg returns the package name.
 func (s ProtocType) Pkg() string {
 	return s.source
 }

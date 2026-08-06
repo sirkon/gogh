@@ -237,7 +237,7 @@ func (r *GoRenderer[T]) Uniq(name string, optSuffix ...string) string {
 	panic(errors.Newf("cannot find scope unique name for given base '%s'", name))
 }
 
-// BindUniq creates unique value (same as Uniq) and then binds it to the given "tag".
+// UniqBind creates unique value (same as Uniq) and then binds it to the given "tag".
 // Formatting will use that bound unique value instead of tag representation.
 func (r *GoRenderer[T]) UniqBind(tag any, name string, optSuffix ...string) string {
 	val := r.Uniq(name, optSuffix...)
@@ -430,7 +430,8 @@ func (r *GoRenderer[T]) T() *GoRenderer[T] {
 //
 // Beware though, the produced code may be incorrect if your type names
 // are only used in strings or comments. You will have an import statement
-// for them, but won't use them at the same time.
+// for them, but won't use them at the same time. Use T renderer and
+// S methods on it to generate these names for comments.
 func (r *GoRenderer[T]) Type(t types.Type) string {
 	switch v := t.(type) {
 	case *types.Named:
@@ -465,12 +466,12 @@ func (r *GoRenderer[T]) Type(t types.Type) string {
 	case *types.Slice:
 		return "[]" + r.Type(v.Elem())
 	case *types.Interface:
-		// Вообще, здесь может быть похитрее, но на практике мало кто использует нечто в духе `interface{ M() }`
-		// в объявлениях параметров или возвращаемых значений, поэтому пока так. Но возможно придётся этим
-		// заморачиваться
+		// It could be trickier here, but in practice hardly anyone uses something
+		// like `interface{ M() }` in parameter or result declarations, so this will
+		// do for now. Though we may have to deal with it eventually.
 		return v.String()
 	case *types.Struct:
-		// аналогично предыдущему пункту
+		// Same as the previous case.
 		return v.String()
 	case *types.Basic:
 		return v.String()
@@ -641,9 +642,9 @@ func (r *GoRenderer[T]) Proto(t past.Type) ProtocType {
 		if file == nil {
 			panic("no file for message " + v.Name())
 		}
-		// если это гугловые врапперы, то для них своя процедура
+		// Google wrappers have their own handling.
 		if file.Name() == "google/protobuf/wrappers.proto" {
-			// ура, ето врапперы!
+			// These are the wrappers.
 			r.imports.Add("google.golang.org/protobuf/Protos/known/wrapperspb").Ref("wrappers")
 			switch v.Name() {
 			case "DoubleValue", "FloatValue", "Int64Value", "UInt64Value",
@@ -818,7 +819,8 @@ func (r *GoRenderer[T]) protoRegistry() *protoast.Registry {
 	return r.pkg.mod.registry
 }
 
-// isInSamePackage определяет, относится ли генерируемый файл к тому же пакету, что и данный тип сгенерированный protoc-gen-go
+// isInSamePackage checks whether the generated file belongs to the same package
+// as the given protoc-gen-go generated type.
 func (r *GoRenderer[T]) isInSamePackage(t past.Node) bool {
 	reference := r.protocTypePkgPath(t)
 	return reference == r.pkg.Path()
@@ -850,7 +852,7 @@ func (r *GoRenderer[T]) handlePanic() {
 		return
 	}
 
-	// Безопасное закрытие базы
+	// Safely close the database.
 	if r.pkg != nil && r.pkg.mod != nil && r.pkg.mod.bolt != nil {
 		if err := r.pkg.mod.bolt.Close(); err != nil {
 			message.Warning(errors.Wrap(err, "failed to close bolt"))
@@ -859,22 +861,22 @@ func (r *GoRenderer[T]) handlePanic() {
 
 	frames := r.getOuterFrames()
 	if len(frames) == 0 {
-		// Если не смогли расковырять стек, фолбекаемся на стандартную панику
+		// If we failed to dig into the stack, fall back to the standard panic.
 		panic(rr)
 	}
 
-	// Форматируем красивый отчет
+	// Format a readable report.
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("%s\nCalls trace in generator:\n", rr))
 	for _, frame := range frames {
-		sb.WriteString(fmt.Sprintf("  -> %s:%d (в %s)\n", frame.File, frame.Line, frame.Function))
+		sb.WriteString(fmt.Sprintf("  -> %s:%d (in %s)\n", frame.File, frame.Line, frame.Function))
 	}
 
 	message.Errorf("%s", sb.String())
 	os.Exit(1)
 }
 
-// getOuterFrames собирает ВСЕ кадры, которые не относятся к внутренностям gogh/runtime
+// getOuterFrames collects ALL frames that do not belong to the internals of gogh/runtime.
 func (r *GoRenderer[T]) getOuterFrames() []runtime.Frame {
 	stack := assembleWholeFrame(32)
 	if stack == nil {
@@ -889,7 +891,7 @@ func (r *GoRenderer[T]) getOuterFrames() []runtime.Frame {
 			break
 		}
 
-		// Проверяем на внутренние пакеты gogh, go-format и runtime
+		// Skip internal packages of gogh, go-format and runtime.
 		if r.isInternalStuff(frame.File) || strings.Contains(frame.Function, "gogh.(*GoRenderer)") {
 			continue
 		}
@@ -905,7 +907,7 @@ func (r *GoRenderer[T]) getOuterFrames() []runtime.Frame {
 func assembleWholeFrame(startSize int) *runtime.Frames {
 	for {
 		pc := make([]uintptr, startSize)
-		// Сдвиг 3 пропускает: runtime.Callers, assembleWholeFrame и вызывающий getOuterFrames
+		// A shift of 3 skips: runtime.Callers, assembleWholeFrame and the calling getOuterFrames.
 		n := runtime.Callers(3, pc)
 		if n == 0 {
 			return nil

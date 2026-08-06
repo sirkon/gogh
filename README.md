@@ -3,6 +3,14 @@
 Go code generation library. The name `gogh` comes from both `GO Generator` and from the fact I adore Van Gogh
 writings.
 
+**LLM-friendly.** An [LLM_CONTEXT.md](LLM_CONTEXT.md) — a condensed API reference — lives in the
+repo to drop into an assistant's context. See [Using gogh with an LLM](#using-gogh-with-an-llm).
+
+**A paradigm shift.** I used to write one big generator that spat out an entire service structure.
+The current paradigm is different: keep a context for the LLM that describes the structure, and a
+tool of small, domain-specific code generators the LLM reaches for point by point. The LLM carries
+the shape; the generators carry the exactness.
+
 # Installation
 
 ```shell script
@@ -258,6 +266,187 @@ r.L(`$fmt.Println($val)`)
   func (g *Generator) renderSomething(r *goRenderer) {…}
   ```
 * You can use `M` or `F` methods to copy signatures of existing functions in an easy way.
+
+# Rationale.
+
+The line-by-line model was chosen as an overall superior approach to code generation. The two
+metrics that drive every design decision in gogh are **composability** and **discoverability**.
+
+## Composability.
+
+This is where templates fail miserably. A template fragment is opaque text — you cannot tell one
+template "render your struct fields into the middle of my constructor" without re-threading all the
+data through both. Templates compose by string concatenation, which collapses the moment nesting or
+ordering becomes non-trivial.
+
+AST/tree builders (jennifer, `go/types`/`ast` construction) are the opposite case: they compose
+perfectly. They are object graphs you assemble by calling methods and nesting nodes, which is as
+composable as it gets. Their problem is not composition — it is the next metric.
+
+The line-by-line model aims to keep that composability while not sacrificing discoverability. A
+sub-generator simply takes a `*GoRenderer[T]` and writes lines; composition is just function calls
+sharing a write surface. `Z()` makes even *interleaved* composition work: one pass over a list can
+fill a struct definition, its constructor arguments, and its field assignments in a single loop,
+because each `Z()` opens a write cursor positioned before the caller's next write.
+
+## Discoverability.
+
+Discoverability is the ability to answer "which codegen line caused this line in the output?". It
+is the discriminator between approaches, and it is where templates and AST/tree builders both
+degrade — for different reasons.
+
+* **Templates** are good at discoverability only at zero composition. With no composition, an output
+  line sits right there in the template. Add `{{define}}`/`{{template}}` composition and that same
+  output line becomes the product of a template plus a caller plus a pipeline, scattered across
+  files, with indentation and whitespace emerging from their interaction rather than living anywhere
+  single. The output line no longer exists at one source location.
+* **AST/tree builders** compose perfectly but fail discoverability: they build a structure that a
+  printer then reformats, reorders, and reflows. A printed `ast.File` bears little spatial
+  resemblance to the calls that built it — the printer is a lossy, position-destroying transform
+  sitting between you and the output. Because the builder optimizes *shape correctness*, the
+  call-site→output-line mapping is destroyed in the process. Note that shape here means **grammar**,
+  not styling — and the builders do provide a grammatically correct shape by definition, since the
+  representation cannot hold malformed Go. That advantage is not that valuable, though: with line-by-line
+  rendering the formatter (`gofmt`/`fancyfmt`) will fail on grammatically incorrect output, and per
+  the panic/`os.Exit` philosophy that failure is a hard stop. The same grammatical guarantee is thus
+  achieved by validation rather than by construction — without paying for it with discoverability.
+
+The line-by-line model keeps the mapping from a generator call site to an output line largely
+intact: `L(format, args...)` is one logical line per call, so when generated code is wrong you grep
+the generator for the offending format string. `gofmt` moves braces and aligns, but it does not
+reorder the mental model of which line came from where.
+
+On the {composability, discoverability} frontier: templates optimize discoverability only at zero
+composition and lose it as composition grows; AST/tree builders optimize composability fully but
+lose discoverability to the printer. Line-by-line keeps both, which is why it was chosen.
+
+## Panics and `os.Exit` are intentional.
+
+If something cannot be rendered properly, the generated code is worthless. A generator that emits
+*plausible but wrong* code is strictly worse than one that stops: plausible-wrong code compiles,
+passes superficial review, merges, and fails in production where the failure is expensive and far
+from its cause. Generated code is trusted precisely because it is machine-produced, so the
+correctness guarantee *is* the product — a hard stop with a trace is unambiguous and happens at the
+source.
+
+The recovered trace is the discoverability mechanism, relocated: you do not get "which output line
+was being written" from a partial file, you get "which generator call was executing" from the stack.
+For a model where one `L` maps to one line, the call site *is* the discoverability unit, so the
+panic path preserves the metric the library cares about. Producing a half-rendered file would
+*degrade* discoverability by forcing the defects to be mapped back to calls by eye.
+
+## A note on locality.
+
+The one place where discoverability is at risk *from the library itself* is the format-string
+mini-language (`$name`, `@ident`, the `P`/`p`/`R`/`_`/`-` verbs): a single `L` call's output can
+depend on `Let`/`Uniq` state set elsewhere, so the call-site→meaning mapping is sometimes
+non-local. This is a deliberate trade of terseness for locality. It stays reconstructable rather
+than mutable-and-lost because `Let` is immutable and a panic trace walks the scopes — but it is not
+free, and it is worth being aware of when reading generated output.
+
+## On exact source mapping.
+
+Discoverability here is approximate, not exact-by-construction. An earlier prototype of this
+library (not in this repo) tracked generator call sites against output lines, so that a `gofmt`
+`file:line` failure pointed straight at the codegen line that produced the offending output. It was
+dropped as too expensive — capturing the mapping relied on `runtime.Stack`, which is not cheap, and
+the cost would only grow here: `Z()` reorders output relative to call order, so mapping output lines
+back to their source calls would have to track block insertions on top of the per-line capture.
+gogh settles for the cheap, approximate mapping that one-`L`-per-line already gives, plus the
+panic trace on failure.
+
+# Using gogh with an LLM.
+
+There is an [LLM_CONTEXT.md](LLM_CONTEXT.md) file in the repository root — a condensed, LLM-oriented
+reference of the gogh API (mental model, entry points, format strings, gotchas). Drop it into the
+context of the code generator you are writing so the assistant works with gogh the way the library
+expects, instead of guessing the API.
+
+## Fetching it into your project.
+
+The file is plain markdown, so a single `curl` is enough:
+
+```shell
+curl -fsSL https://raw.githubusercontent.com/sirkon/gogh/master/LLM_CONTEXT.md -o gogh-context.md
+```
+
+If you prefer to pull it straight from a checkout (and keep it trivially updatable), clone into a
+temporary directory and copy:
+
+```shell
+tmpdir="$(mktemp -d)"
+git clone --depth 1 https://github.com/sirkon/gogh.git "$tmpdir/gogh"
+cp "$tmpdir/gogh/LLM_CONTEXT.md" ./gogh-context.md
+rm -rf "$tmpdir"
+```
+
+Put the file wherever your tool looks for context. A couple of common cases:
+
+* **Claude Code** — keep the file in the repo (e.g. `gogh-context.md`) and reference it from
+  `CLAUDE.md` with an import:
+  ```
+  @gogh-context.md
+  ```
+  or mention it with `@gogh-context.md` in the prompt when working on the generator.
+
+* **Cursor** — save it as a rule under `.cursor/rules/`, e.g.
+  `.cursor/rules/gogh.mdc` (add the usual rule frontmatter on top).
+
+Re-run the `curl`/`clone` snippet to refresh the context when you bump the gogh version.
+
+# Troubleshooting.
+
+## The package-name cache.
+
+`gogh.New` opens a boltDB cache under the user cache directory to remember the package names of
+imported packages (so it does not have to shell out to `go list` — which can take seconds — for them
+on every run). The file lives at:
+
+```
+<user cache dir>/GoghProjects/bolt.db
+```
+
+which resolves to:
+
+| OS      | Path                                          |
+|---------|-----------------------------------------------|
+| macOS   | `~/Library/Caches/GoghProjects/bolt.db`       |
+| Linux   | `~/.cache/GoghProjects/bolt.db`               |
+| Windows | `%LocalAppData%\GoghProjects\bolt.db`         |
+
+The cache is self-invalidating, so manual clearing is rarely needed:
+
+* Entries are keyed by `(package path, declared version)` parsed from `go.mod`. When you bump a
+  dependency, its version changes, the key changes, and the old entry is simply not hit — gogh
+  re-fetches that package and stores it under the new key. Nothing else is touched.
+* Replaced, workspaced and local packages are never bolt-cached: their package name is read
+  straight from the on-disk source (parsing only the package clause), which is cheap and always
+  fresh. They never go through `go list`.
+* Packages absent from `go.mod` (the standard library, transitive packages not declared there) are
+  cached by package path alone — their names change rarely.
+* A per-module in-memory cache additionally ensures each package name is resolved at most once per
+  `Module`, even across the `Type`/`Object` rendering paths that resolve names directly.
+
+In the rare event the cache file becomes corrupt, delete `<user cache dir>/GoghProjects/bolt.db` —
+gogh recreates it on the next run.
+
+## `go build ./...` fails on `golang.org/x/tools`.
+
+A stale `golang.org/x/tools` dependency may fail to compile on newer Go toolchains (e.g. `invalid
+array length -delta * delta`). Bump it:
+
+```shell
+go get golang.org/x/tools@latest
+go mod tidy
+```
+
+## Generation panics with a "Calls trace in generator".
+
+This is intentional (see [Rationale](#rationale)). The trace lists the generator call sites that
+led to the failure — start from the topmost frame that is your code. The most common causes are a
+`Ref`/`Let` name collision (use `TryLet` or pick a unique reference name), an unsupported
+`types.Type`/`past.Type` passed to `Type`/`Proto`, or a format-string error (wrong number of
+positional args, unknown `$name`, bad `@ident`).
 
 # About mimchain utility.
 

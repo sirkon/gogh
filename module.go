@@ -29,6 +29,7 @@ func New[T Importer](
 	var envData struct {
 		GOMOD  string
 		GOROOT string
+		GOWORK string
 	}
 	if err := jsonexec.Run(&envData, "go", "env", "--json"); err != nil {
 		return nil, errors.Wrap(err, "get module environment data")
@@ -44,6 +45,11 @@ func New[T Importer](
 	}
 	if err := jsonexec.Run(&moduleData, "go", "mod", "edit", "--json"); err != nil {
 		return nil, errors.Wrap(err, "get current module info")
+	}
+
+	resolver, err := newModuleResolver(envData.GOMOD, envData.GOWORK)
+	if err != nil {
+		return nil, errors.Wrap(err, "build package-name cache resolver")
 	}
 
 	cacheDir, err := os.UserCacheDir()
@@ -69,8 +75,10 @@ func New[T Importer](
 		pkgs:       map[string]*Package[T]{},
 		raws:       map[string]*RawRenderer{},
 		pkgcache:   map[string]string{},
+		memcache:   map[string]string{},
 		bolt:       db,
 		goghBucket: []byte("gogh-projects"),
+		resolver:   resolver,
 	}
 
 	for _, opt := range opts {
@@ -96,8 +104,10 @@ type Module[T Importer] struct {
 	raws map[string]*RawRenderer
 
 	pkgcache   map[string]string
+	memcache   map[string]string
 	bolt       *bolt.DB
 	goghBucket []byte
+	resolver   *moduleResolver
 }
 
 // Root create if needed and returns a package placed right in the project root. The name parameter is rather

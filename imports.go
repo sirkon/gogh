@@ -30,6 +30,12 @@ type Imports struct {
 	coldSave  func(pkgpath string, name string)
 	inprocess func(pkgpath string) string
 	namer     func(relpath string) string
+	// meta resolves a package path for caching purposes, returning the package
+	// name (when obtainable without `go list`) and the bolt cache key to use
+	// (empty when the name is already returned and must not be persisted).
+	meta      func(pkgpath string) (name string, cacheKey string)
+	memGet    func(pkgpath string) string
+	memSet    func(pkgpath, name string)
 	pending   []*ImportAliasControl
 	corrector AliasCorrector
 }
@@ -69,24 +75,59 @@ func (i *Imports) Module(relpath string) *ImportAliasControl {
 }
 
 func (i *Imports) getPkgName(pkgpath string) string {
+	// Per-module in-memory cache: a package name, once resolved, is reused for
+	// the rest of the Module's lifetime. This matters for the Type/Object
+	// rendering paths, which call getPkgName directly (bypassing Add's alias
+	// cache) and would otherwise re-run disk reads or `go list` for every type
+	// rendered out of the same package.
+	if v := i.memGet(pkgpath); v != "" {
+		return v
+	}
+
+	name := i.resolvePkgName(pkgpath)
+	i.memSet(pkgpath, name)
+	return name
+}
+
+// resolvePkgName resolves a package name without consulting the in-memory render
+// cache.
+func (i *Imports) resolvePkgName(pkgpath string) string {
 	// this can be a package which is under rendering currently, check it
 	if v := i.inprocess(pkgpath); v != "" {
 		return v
 	}
 
-	if v := i.coldHash(pkgpath); v != "" {
+	// meta returns the name (when obtainable without `go list`) and the bolt
+	// cache key to use:
+	//   - local packages (replaced/workspaced): name read from disk, empty key
+	//     (always fresh, never bolt-cached);
+	//   - versioned deps: key = pkgpath + "\x00" + version (a bump invalidates
+	//     exactly this entry);
+	//   - packages absent from go.mod (stdlib, transitive): key = pkgpath.
+	name, cacheKey := i.meta(pkgpath)
+	if name != "" {
+		return name
+	}
+
+	if v := i.coldHash(cacheKey); v != "" {
 		return v
 	}
 
-	// it can be only outer package if we reach here, use go list
+	return i.fetchPkgName(pkgpath, cacheKey)
+}
+
+// fetchPkgName runs `go list` to obtain the package name and, when cacheKey is
+// non-empty, persists the result under that key.
+func (i *Imports) fetchPkgName(pkgpath, cacheKey string) string {
 	var pkginfo struct {
 		Name string
 	}
 	if err := jsonexec.Run(&pkginfo, "go", "list", "--json", pkgpath); err != nil {
 		panic(errors.Wrapf(err, "get package %s info", pkgpath))
 	}
-	i.coldSave(pkgpath, pkginfo.Name)
-
+	if cacheKey != "" {
+		i.coldSave(cacheKey, pkginfo.Name)
+	}
 	return pkginfo.Name
 }
 

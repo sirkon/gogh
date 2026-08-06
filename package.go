@@ -99,6 +99,13 @@ func (p *Package[T]) Go(name string, opts ...RendererOption) (res *GoRenderer[T]
 		namer: func(relpath string) string {
 			return path.Join(p.mod.name, relpath)
 		},
+		meta: p.mod.resolver.meta,
+		memGet: func(pkgpath string) string {
+			return p.mod.memcache[pkgpath]
+		},
+		memSet: func(pkgpath, name string) {
+			p.mod.memcache[pkgpath] = name
+		},
 		pending:   nil,
 		corrector: nil,
 	}
@@ -222,6 +229,13 @@ func (p *Package[T]) Void() *GoRenderer[T] {
 		},
 		namer: func(relpath string) string {
 			return path.Join(p.mod.name, relpath)
+		},
+		meta: p.mod.resolver.meta,
+		memGet: func(pkgpath string) string {
+			return p.mod.memcache[pkgpath]
+		},
+		memSet: func(pkgpath, name string) {
+			p.mod.memcache[pkgpath] = name
 		},
 	}
 	res.imports = p.mod.importer(imports)

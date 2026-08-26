@@ -370,6 +370,85 @@ func main() {
 ## Where to look in the repo for more
 
 - `README.md` — the canonical, human-oriented doc (covers the same API with the author's framing).
-- `cmd/mimchain/` — a real generator built with gogh (generates chaining-renderer helper types around an existing type).
+- `cmd/mimchain/` — a real generator built with gogh (see the next section).
 - `cmd/mimchain/internal/testexample/` — a runnable worked example: `testexample_test.go` drives generation; `rendering_example.go` is the generated output.
 - Godoc on `module.go`, `package.go`, `imports.go`, `renderer_go.go`, `renderer_go_func.go`, `renderer_options.go`, `module_options.go` — thorough per-symbol docs.
+
+---
+
+## mimchain — generating chaining-renderer helper types
+
+`cmd/mimchain` is a ready-made generator (itself built with gogh) that produces **code-renderer types mirroring an existing chaining type**. Given a type whose constructors and methods return the type itself, it emits a `<Name>[T gogh.Importer]` / `<Name>Attr[T]` pair that lets other generators write fluent call chains with IDE completion, instead of hand-writing one long `r.L(...)` format string:
+
+```go
+// instead of:
+r.L(`return $ReturnZeroValues $errors.Wrap(err, "count $0").Int("stopped-count-at", $count).Str("place", "placeName")`, what)
+// write:
+wrp.R(r, what).Wrap("err", "count $0").Int("stopped-count-at", "$count").Str("place", placeName)
+```
+
+### Installation & invocation
+
+```shell
+go install github.com/sirkon/gogh/cmd/mimchain
+```
+
+```
+mimchain [--string-args-quoted|-q] [--package-name|-p STRING] <type> <dst>
+```
+
+- Both `<type>` and `<dst>` are `<pkgpath>:<TypeName>` points (module-relative paths like `./internal/wrp` are fine; the path is resolved via `go list`). Both type names must be **exported** (`gogh.Public` casing is enforced).
+- Output is written with `gogh.Shy` — an existing `<name>_generated.go` is **never overwritten**; delete it first to regenerate.
+- `<type>` — the existing chaining type to mirror.
+- `<dst>` — the wrapper type to generate. Output goes to `<underscored_type>_generated.go` in the destination package.
+- `-p/--package-name` — name for the destination package **if it doesn't exist yet**. Note the directory must already contain at least one Go file (a `doc.go` is enough), otherwise `go list` fails; ignored when the package exists.
+- `-q/--string-args-quoted` — in the *generated renderer*, auto-quote `string` args (via `strconv.Quote`) at positions that are **always strings across the whole group** of mirrored signatures. Typical use: `errors.New(msg)` → `New("literal message")` while still passing format strings unquoted to go through `r.S(...)` with positional args. Alternatively handle this per-call-site with `gogh.Q` / `gogh.L` / `gogh.QuoteBias` values.
+- Use `--` to separate from `go:generate`-style args: `//go:generate go run . -- -q github.com/sirkon/errors:Error ./internal/testexample:Error`.
+
+### What gets mirrored (eligibility rules)
+
+A package-level function is mirrored as a **constructor** (on `<Name>`) if it is exported and its single result is exactly the `<type>` **value type**. A method is mirrored (on `<Name>Attr`) under the same condition. Consequences:
+
+- Only types whose chain methods return the **value type** work (`func (c Chain) Add(...) Chain`, not `*Chain` — return-type identity, not assignability, is checked, so `*Error` results don't qualify; pointer receivers on the source are fine).
+- Functions/methods with zero results or multiple results are skipped.
+- Mirrored constructors/methods with the same parameter count (+variadicness) share one generated base implementation (`constructor1`, `method2variadic`, …), grouped by signature weight.
+
+### What the generated code looks like and how to use it
+
+The generated `<Name>` and `<Name>Attr` types have `r *gogh.GoRenderer[T]`, `buf *bytes.Buffer`, `a []any` fields plus `String()`. Each chained call appends text into `buf` and returns the `Attr` type. Arg rendering per call: `fmt.Stringer` args are rendered via their `String()` (this is how `gogh.Q`/`gogh.L`/`gogh.QuoteBias` control quoting), plain `string` args go through `r.S(v, a...)` so `$0`/`$name` substitution still applies, anything else falls back to `fmt.Sprint`. The `a` slice comes from your hand-written entry-point constructor (e.g. `R(r, what)` makes `$0` expand to `what` in every string of the chain).
+
+**mimchain does not generate the entry-point constructor** (the analog of `R(r)` in the example below) — write it by hand, typically using `gogh.GoRendererBuffer(r)` to get a buffer that flows into the right place of the file, plus `r.S("$"+gogh.ReturnZeroValues)` if you're building a `return` expression:
+
+```go
+// R creates `return ....` renderer with an error expression in it.
+func R[T gogh.Importer](r *gogh.GoRenderer[T], a ...any) *Error[T] {
+	r = r.Scope()
+	buffer := gogh.GoRendererBuffer(r)
+	buffer.WriteString("return ")
+	buffer.WriteString(r.S("$" + gogh.ReturnZeroValues))
+	return &Error[T]{r: r, buf: buffer, a: a}
+}
+```
+
+Then inside `F`/`M` bodies (which set `ReturnZeroValues` for you):
+
+```go
+r.F("newExample")().Returns("error").Body(func(r *gogh.GoRenderer[*gogh.Imports]) {
+	R(r).New("something failed").Str("something", gogh.Q("value"))
+})
+```
+
+Remember to call `r.SetReturnZeroValues(...)` when constructing the renderer yourself (outside `F`/`M`), and that generated files have no "DO NOT EDIT" header — tweaking them by hand is expected.
+
+### Runnable example
+
+`cmd/mimchain/internal/testexample/`:
+
+- `error.go` — the hand-written `R` entry-point constructor.
+- `error_generated.go` — mimchain output for `github.com/sirkon/errors:Error` (note: generated against errors **v0.5.0**, where constructors returned `Error` by value; the current errors releases return `*Error` and no longer match the eligibility rules).
+- `testexample_test.go` — regenerates `rendering_example.go` via `prj.Package("", "cmd/mimchain/internal/testexample")` and `r.F(...)` bodies using `R(r).Newf(...)` etc.
+- `rendering_example.go` — the committed result of that generation.
+
+### mimchain as gogh usage reference
+
+`cmd/mimchain/*.go` is also the canonical "real generator" sample: kong CLI parsing with `sourcePoint`-style args validated through `UnmarshalText`, loading source types via `golang.org/x/tools/go/packages`, `Z()` + `g.b` for two-phase rendering (per-method facades first, shared base implementations after), `Scope()`/`Let` for per-group context isolation, `M` with `$x`/`*$gtype[T]` receiver strings, and `FancyFmt` as the formatter.
